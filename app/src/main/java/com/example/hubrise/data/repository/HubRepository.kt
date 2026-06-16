@@ -2,7 +2,6 @@ package com.example.hubrise.data.repository
 
 import com.example.hubrise.data.api.RetrofitClient
 import com.example.hubrise.data.model.Challenge
-import com.example.hubrise.data.model.CountLogResponse
 import com.example.hubrise.data.model.CreateChallengeRequest
 import com.example.hubrise.data.model.CreateHubRequest
 import com.example.hubrise.data.model.CreatePostRequest
@@ -11,8 +10,6 @@ import com.example.hubrise.data.model.HubMember
 import com.example.hubrise.data.model.JoinLeaveResponse
 import com.example.hubrise.data.model.LeaderboardEntry
 import com.example.hubrise.data.model.Post
-import com.example.hubrise.data.model.StageCompleteResponse
-import com.example.hubrise.data.model.StreakCheckinResponse
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -96,25 +93,6 @@ class HubRepository {
 
     suspend fun getLeaderboard(challengeId: Int): Result<List<LeaderboardEntry>> = try {
         val r = api.getLeaderboard(challengeId)
-        if (r.isSuccessful && r.body() != null) Result.Success(r.body()!!)
-        else Result.Error("${r.code()}: ${r.errorBody()?.string()}")
-    } catch (e: Exception) { Result.Error(e.message ?: "Network error") }
-
-    suspend fun completeStage(challengeId: Int, stageId: Int): Result<StageCompleteResponse> = try {
-        val r = api.completeStage(challengeId, stageId)
-        if (r.isSuccessful && r.body() != null) Result.Success(r.body()!!)
-        else Result.Error("${r.code()}: ${r.errorBody()?.string()}")
-    } catch (e: Exception) { Result.Error(e.message ?: "Network error") }
-
-    suspend fun logCountEntry(challengeId: Int, amount: Double? = null): Result<CountLogResponse> = try {
-        val body = if (amount != null) mapOf("amount" to amount) else emptyMap()
-        val r = api.logCountEntry(challengeId, body)
-        if (r.isSuccessful && r.body() != null) Result.Success(r.body()!!)
-        else Result.Error("${r.code()}: ${r.errorBody()?.string()}")
-    } catch (e: Exception) { Result.Error(e.message ?: "Network error") }
-
-    suspend fun streakCheckin(challengeId: Int): Result<StreakCheckinResponse> = try {
-        val r = api.streakCheckin(challengeId)
         if (r.isSuccessful && r.body() != null) Result.Success(r.body()!!)
         else Result.Error("${r.code()}: ${r.errorBody()?.string()}")
     } catch (e: Exception) { Result.Error(e.message ?: "Network error") }

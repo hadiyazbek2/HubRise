@@ -19,7 +19,6 @@ import com.example.hubrise.R
 import com.example.hubrise.data.api.RetrofitClient
 import com.example.hubrise.data.local.UserPreferences
 import com.example.hubrise.data.model.Hub
-import com.example.hubrise.data.model.ProgressModel
 import com.example.hubrise.ui.comments.CommentsBottomSheetFragment
 import com.example.hubrise.ui.home.PostAdapter
 import com.example.hubrise.ui.profile.UserProfileFragment
@@ -286,18 +285,13 @@ class HubDetailFragment : Fragment() {
         val completed = main.percentComplete >= 100
         tvMainChallengeProgress.text = main.summary + if (completed) "  ·  Completed! 🎉" else ""
 
-        if (main.progressModel == ProgressModel.COUNT) {
-            btnMainChallengePlus.text = "+1"
-            btnMainChallengePlus.visibility = if (completed || !hub.isMember) View.GONE else View.VISIBLE
-            btnMainChallengePlus.setOnClickListener { viewModel.logMainChallengeProgress() }
-        } else {
-            // Stage/streak need their full detail screen (current stage, today's check-in state).
-            btnMainChallengePlus.text = "View"
-            btnMainChallengePlus.visibility = View.VISIBLE
-            btnMainChallengePlus.setOnClickListener {
-                val bundle = Bundle().apply { putInt("challengeId", main.id) }
-                findNavController().navigate(R.id.challengeDetailFragment, bundle)
-            }
+        // Progress always happens by creating a post, so this just opens the Challenge
+        // Detail screen — there is no direct "+1"/check-in button anywhere in the app.
+        btnMainChallengePlus.text = "View"
+        btnMainChallengePlus.visibility = View.VISIBLE
+        btnMainChallengePlus.setOnClickListener {
+            val bundle = Bundle().apply { putInt("challengeId", main.id) }
+            findNavController().navigate(R.id.challengeDetailFragment, bundle)
         }
     }
 

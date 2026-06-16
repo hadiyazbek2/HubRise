@@ -13,14 +13,14 @@ import com.example.hubrise.data.model.ChallengeStageStatus
 import com.example.hubrise.data.model.StageStatus
 
 class StageProgressAdapter(
-    private val onMarkComplete: (ChallengeStageStatus) -> Unit,
+    private val onAddProgressPost: (ChallengeStageStatus) -> Unit,
 ) : ListAdapter<ChallengeStageStatus, StageProgressAdapter.ViewHolder>(DiffCallback) {
 
     inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         private val tvStatusIcon: TextView = view.findViewById(R.id.tv_status_icon)
         private val tvTitle: TextView = view.findViewById(R.id.tv_stage_title)
         private val tvMeta: TextView = view.findViewById(R.id.tv_stage_meta)
-        private val btnMarkComplete: Button = view.findViewById(R.id.btn_mark_complete)
+        private val btnAddProgressPost: Button = view.findViewById(R.id.btn_mark_complete)
 
         fun bind(stage: ChallengeStageStatus, isCurrentActionable: Boolean) {
             tvTitle.text = "${stage.orderIndex}. ${stage.title}"
@@ -35,9 +35,10 @@ class StageProgressAdapter(
             }
             tvStatusIcon.alpha = if (stage.status == StageStatus.COMPLETED || isCurrentActionable) 1f else 0.4f
 
-            btnMarkComplete.visibility =
+            btnAddProgressPost.text = "+ Add Progress Post"
+            btnAddProgressPost.visibility =
                 if (stage.status != StageStatus.COMPLETED && isCurrentActionable) View.VISIBLE else View.GONE
-            btnMarkComplete.setOnClickListener { onMarkComplete(stage) }
+            btnAddProgressPost.setOnClickListener { onAddProgressPost(stage) }
         }
     }
 

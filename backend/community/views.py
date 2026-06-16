@@ -219,14 +219,138 @@ class HubPostsView(generics.ListAPIView):
 
 
 class CreatePostView(generics.CreateAPIView):
+    """Creating a post is the *only* way to make challenge progress.
+    If `challenge` is present in the body, this performs the underlying
+    progress mutation (stage complete / count log / streak check-in) and
+    tags the resulting post accordingly. Otherwise it's a normal post."""
+
     serializer_class = CreatePostSerializer
 
     def create(self, request, *args, **kwargs):
+        challenge_id = request.data.get("challenge")
+        if challenge_id:
+            return self._create_progress_post(request, challenge_id)
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         post = serializer.save()
         response_data = PostSerializer(post, context={"request": request}).data
         return Response(response_data, status=status.HTTP_201_CREATED)
+
+    def _create_progress_post(self, request, challenge_id):
+        challenge = get_object_or_404(Challenge, id=challenge_id)
+        if not HubMembership.objects.filter(user=request.user, hub=challenge.hub).exists():
+            return Response({"detail": "You must join the hub to log progress."}, status=status.HTTP_403_FORBIDDEN)
+
+        content = str(request.data.get("content", "")).strip()
+
+        if challenge.progress_model == Challenge.MODEL_STAGE:
+            return self._create_stage_post(request, challenge, content)
+        if challenge.progress_model == Challenge.MODEL_COUNT:
+            return self._create_count_post(request, challenge, content)
+        return self._create_streak_post(request, challenge, content)
+
+    def _create_stage_post(self, request, challenge, content):
+        stage_id = request.data.get("stage")
+        if not stage_id:
+            return Response({"detail": "stage is required for this challenge."}, status=status.HTTP_400_BAD_REQUEST)
+        stage = get_object_or_404(ChallengeStage, id=stage_id, challenge=challenge)
+
+        earlier_incomplete = (
+            ChallengeStage.objects.filter(challenge=challenge, order_index__lt=stage.order_index)
+            .exclude(progress__user=request.user, progress__status=UserStageProgress.STATUS_COMPLETED)
+            .exists()
+        )
+        if earlier_incomplete:
+            return Response({"detail": "Complete earlier stages first."}, status=status.HTTP_400_BAD_REQUEST)
+
+        progress, _ = UserStageProgress.objects.get_or_create(user=request.user, stage=stage)
+        if progress.status == UserStageProgress.STATUS_COMPLETED:
+            return Response({"detail": "This stage is already completed."}, status=status.HTTP_400_BAD_REQUEST)
+        progress.status = UserStageProgress.STATUS_COMPLETED
+        progress.completed_at = timezone.now()
+        progress.save(update_fields=["status", "completed_at", "updated_at"])
+
+        post = Post.objects.create(
+            author=request.user,
+            hub=challenge.hub,
+            post_type=Post.TYPE_STAGE_PROOF,
+            challenge=challenge,
+            linked_stage=stage,
+            content=content or f"✅ Completed stage {stage.order_index}: {stage.title} — {challenge.title}",
+        )
+        return Response(PostSerializer(post, context={"request": request}).data, status=status.HTTP_201_CREATED)
+
+    def _create_count_post(self, request, challenge, content):
+        config = getattr(challenge, "count_config", None)
+        if config is None:
+            return Response({"detail": "This challenge has no count configuration."}, status=status.HTTP_400_BAD_REQUEST)
+
+        amount = request.data.get("amount")
+        try:
+            increment = Decimal(str(amount)) if amount is not None else config.entry_increment
+        except InvalidOperation:
+            return Response({"detail": "Invalid amount."}, status=status.HTTP_400_BAD_REQUEST)
+        if increment <= 0:
+            return Response({"detail": "amount must be positive."}, status=status.HTTP_400_BAD_REQUEST)
+
+        progress, _ = UserCountProgress.objects.get_or_create(user=request.user, challenge=challenge)
+        progress.current_count = progress.current_count + increment
+        if not progress.is_complete and progress.current_count >= config.target_count:
+            progress.is_complete = True
+            progress.completed_at = timezone.now()
+        progress.save()
+
+        unit = f" {config.unit_label}" if config.unit_label else ""
+        default_content = (
+            f"📈 Logged +{float(increment):g} — {float(progress.current_count):g}/{float(config.target_count):g}{unit}"
+            f" — {challenge.title}"
+        )
+        post = Post.objects.create(
+            author=request.user,
+            hub=challenge.hub,
+            post_type=Post.TYPE_COUNT_ENTRY,
+            challenge=challenge,
+            content=content or default_content,
+        )
+        return Response(PostSerializer(post, context={"request": request}).data, status=status.HTTP_201_CREATED)
+
+    def _create_streak_post(self, request, challenge, content):
+        config = getattr(challenge, "streak_config", None)
+        if config is None:
+            return Response({"detail": "This challenge has no streak configuration."}, status=status.HTTP_400_BAD_REQUEST)
+
+        today = timezone.localdate()
+        progress, _ = UserStreakProgress.objects.get_or_create(user=request.user, challenge=challenge)
+        if progress.last_checkin_date == today:
+            return Response({"detail": "You already checked in today."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if progress.last_checkin_date is not None:
+            gap_days = (today - progress.last_checkin_date).days
+            if gap_days > 1 + config.grace_days:
+                progress.current_streak = 0
+
+        progress.current_streak += 1
+        progress.longest_streak = max(progress.longest_streak, progress.current_streak)
+        progress.total_checkins += 1
+        progress.checkin_calendar = list(progress.checkin_calendar) + [today.isoformat()]
+        progress.last_checkin_date = today
+        if not progress.is_complete and progress.total_checkins >= config.target_days:
+            progress.is_complete = True
+        progress.save()
+
+        default_content = (
+            f"🔥 Day {progress.current_streak} streak — {progress.total_checkins}/{config.target_days} days"
+            f" — {challenge.title}"
+        )
+        post = Post.objects.create(
+            author=request.user,
+            hub=challenge.hub,
+            post_type=Post.TYPE_STREAK_CHECKIN,
+            challenge=challenge,
+            content=content or default_content,
+        )
+        return Response(PostSerializer(post, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
 class ToggleLikeView(APIView):
@@ -623,156 +747,6 @@ class ChallengeLeaderboardView(APIView):
                 "score": score,
             })
         return Response(data)
-
-
-class StageCompleteView(APIView):
-    """Model A — marks a stage complete for the authenticated user. Stages
-    must be completed in order; no admin review gate in this phase."""
-
-    def post(self, request, id: int, stage_id: int):
-        challenge = get_object_or_404(Challenge, id=id, progress_model=Challenge.MODEL_STAGE)
-        stage = get_object_or_404(ChallengeStage, id=stage_id, challenge=challenge)
-
-        if not HubMembership.objects.filter(user=request.user, hub=challenge.hub).exists():
-            return Response({"detail": "You must join the hub to update progress."}, status=status.HTTP_403_FORBIDDEN)
-
-        earlier_incomplete = (
-            ChallengeStage.objects.filter(challenge=challenge, order_index__lt=stage.order_index)
-            .exclude(progress__user=request.user, progress__status=UserStageProgress.STATUS_COMPLETED)
-            .exists()
-        )
-        if earlier_incomplete:
-            return Response({"detail": "Complete earlier stages first."}, status=status.HTTP_400_BAD_REQUEST)
-
-        progress, _ = UserStageProgress.objects.get_or_create(user=request.user, stage=stage)
-        post_id = None
-        if progress.status != UserStageProgress.STATUS_COMPLETED:
-            progress.status = UserStageProgress.STATUS_COMPLETED
-            progress.completed_at = timezone.now()
-            progress.save(update_fields=["status", "completed_at", "updated_at"])
-            post = Post.objects.create(
-                author=request.user,
-                hub=challenge.hub,
-                post_type=Post.TYPE_STAGE_PROOF,
-                challenge=challenge,
-                linked_stage=stage,
-                content=f"✅ Completed stage {stage.order_index}: {stage.title} — {challenge.title}",
-            )
-            post_id = post.id
-
-        total = challenge.stages.count()
-        completed = UserStageProgress.objects.filter(
-            stage__challenge=challenge, user=request.user, status=UserStageProgress.STATUS_COMPLETED
-        ).count()
-        return Response({
-            "stage_id": stage.id,
-            "status": progress.status,
-            "completed_stages": completed,
-            "total_stages": total,
-            "is_complete": completed >= total,
-            "post_id": post_id,
-        })
-
-
-class CountLogView(APIView):
-    """Model B — logs a count entry for the authenticated user."""
-
-    def post(self, request, id: int):
-        challenge = get_object_or_404(Challenge, id=id, progress_model=Challenge.MODEL_COUNT)
-        config = getattr(challenge, "count_config", None)
-        if config is None:
-            return Response({"detail": "This challenge has no count configuration."}, status=status.HTTP_400_BAD_REQUEST)
-
-        if not HubMembership.objects.filter(user=request.user, hub=challenge.hub).exists():
-            return Response({"detail": "You must join the hub to log progress."}, status=status.HTTP_403_FORBIDDEN)
-
-        amount = request.data.get("amount")
-        try:
-            increment = Decimal(str(amount)) if amount is not None else config.entry_increment
-        except InvalidOperation:
-            return Response({"detail": "Invalid amount."}, status=status.HTTP_400_BAD_REQUEST)
-        if increment <= 0:
-            return Response({"detail": "amount must be positive."}, status=status.HTTP_400_BAD_REQUEST)
-
-        progress, _ = UserCountProgress.objects.get_or_create(user=request.user, challenge=challenge)
-        progress.current_count = progress.current_count + increment
-        if not progress.is_complete and progress.current_count >= config.target_count:
-            progress.is_complete = True
-            progress.completed_at = timezone.now()
-        progress.save()
-
-        unit = f" {config.unit_label}" if config.unit_label else ""
-        post = Post.objects.create(
-            author=request.user,
-            hub=challenge.hub,
-            post_type=Post.TYPE_COUNT_ENTRY,
-            challenge=challenge,
-            content=(
-                f"📈 Logged +{float(increment):g} — {float(progress.current_count):g}/{float(config.target_count):g}{unit}"
-                f" — {challenge.title}"
-            ),
-        )
-
-        return Response({
-            "current_count": progress.current_count,
-            "target_count": config.target_count,
-            "is_complete": progress.is_complete,
-            "post_id": post.id,
-        })
-
-
-class StreakCheckinView(APIView):
-    """Model C — records today's check-in for the authenticated user."""
-
-    def post(self, request, id: int):
-        challenge = get_object_or_404(Challenge, id=id, progress_model=Challenge.MODEL_STREAK)
-        config = getattr(challenge, "streak_config", None)
-        if config is None:
-            return Response({"detail": "This challenge has no streak configuration."}, status=status.HTTP_400_BAD_REQUEST)
-
-        if not HubMembership.objects.filter(user=request.user, hub=challenge.hub).exists():
-            return Response({"detail": "You must join the hub to check in."}, status=status.HTTP_403_FORBIDDEN)
-
-        today = timezone.localdate()
-        progress, _ = UserStreakProgress.objects.get_or_create(user=request.user, challenge=challenge)
-
-        if progress.last_checkin_date == today:
-            return Response({"detail": "You already checked in today."}, status=status.HTTP_400_BAD_REQUEST)
-
-        if progress.last_checkin_date is not None:
-            gap_days = (today - progress.last_checkin_date).days
-            if gap_days > 1 + config.grace_days:
-                progress.current_streak = 0
-
-        progress.current_streak += 1
-        progress.longest_streak = max(progress.longest_streak, progress.current_streak)
-        progress.total_checkins += 1
-        progress.checkin_calendar = list(progress.checkin_calendar) + [today.isoformat()]
-        progress.last_checkin_date = today
-        if not progress.is_complete and progress.total_checkins >= config.target_days:
-            progress.is_complete = True
-        progress.save()
-
-        post = Post.objects.create(
-            author=request.user,
-            hub=challenge.hub,
-            post_type=Post.TYPE_STREAK_CHECKIN,
-            challenge=challenge,
-            content=(
-                f"🔥 Day {progress.current_streak} streak — {progress.total_checkins}/{config.target_days} days"
-                f" — {challenge.title}"
-            ),
-        )
-
-        return Response({
-            "current_streak": progress.current_streak,
-            "longest_streak": progress.longest_streak,
-            "total_checkins": progress.total_checkins,
-            "target_days": config.target_days,
-            "is_complete": progress.is_complete,
-            "checkin_calendar": progress.checkin_calendar,
-            "post_id": post.id,
-        })
 
 
 class CommentListCreateView(generics.ListCreateAPIView):

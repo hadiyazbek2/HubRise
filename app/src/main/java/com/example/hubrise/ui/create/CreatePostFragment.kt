@@ -16,7 +16,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
 import coil.load
 import com.example.hubrise.R
+import com.example.hubrise.data.model.Challenge
 import com.example.hubrise.data.model.Hub
+import com.example.hubrise.data.model.ProgressModel
 import com.example.hubrise.utils.MediaPickerHelper
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.textfield.TextInputEditText
@@ -30,6 +32,11 @@ class CreatePostFragment : Fragment() {
     private lateinit var btnPost: Button
     private lateinit var rowHubSelector: LinearLayout
     private lateinit var tvSelectedHub: TextView
+    private lateinit var rowChallengeSelector: LinearLayout
+    private lateinit var tvSelectedChallenge: TextView
+    private lateinit var dividerChallenge: View
+    private lateinit var rowAmount: View
+    private lateinit var etAmount: TextInputEditText
     private lateinit var layoutNoHubs: LinearLayout
     private lateinit var etContent: TextInputEditText
     private lateinit var tvCharCount: TextView
@@ -39,6 +46,7 @@ class CreatePostFragment : Fragment() {
     private lateinit var ivMediaPreview: ImageView
     private lateinit var btnRemoveMedia: ImageView
     private lateinit var btnAddMedia: ImageView
+    private var returnToCaller = false
 
     // Register launcher before onCreateView
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -60,6 +68,11 @@ class CreatePostFragment : Fragment() {
         btnPost = view.findViewById(R.id.btn_post)
         rowHubSelector = view.findViewById(R.id.row_hub_selector)
         tvSelectedHub = view.findViewById(R.id.tv_selected_hub)
+        rowChallengeSelector = view.findViewById(R.id.row_challenge_selector)
+        tvSelectedChallenge = view.findViewById(R.id.tv_selected_challenge)
+        dividerChallenge = view.findViewById(R.id.divider_challenge)
+        rowAmount = view.findViewById(R.id.row_amount)
+        etAmount = view.findViewById(R.id.et_amount)
         layoutNoHubs = view.findViewById(R.id.layout_no_hubs)
         etContent = view.findViewById(R.id.et_content)
         tvCharCount = view.findViewById(R.id.tv_char_count)
@@ -72,6 +85,7 @@ class CreatePostFragment : Fragment() {
 
         btnBack.setOnClickListener { findNavController().popBackStack() }
         rowHubSelector.setOnClickListener { showHubPickerBottomSheet() }
+        rowChallengeSelector.setOnClickListener { showChallengePickerBottomSheet() }
 
         btnAddMedia.setOnClickListener { showMediaPickerBottomSheet() }
         btnRemoveMedia.setOnClickListener { viewModel.clearMedia() }
@@ -86,15 +100,23 @@ class CreatePostFragment : Fragment() {
             }
         })
 
+        val hubIdArg = arguments?.getInt("hubId", -1)?.takeIf { it != -1 }
+        val challengeIdArg = arguments?.getInt("challengeId", -1)?.takeIf { it != -1 }
+        returnToCaller = hubIdArg != null
+        if (hubIdArg != null) viewModel.preselect(hubIdArg, challengeIdArg)
+
         btnPost.setOnClickListener {
-            viewModel.createPost(etContent.text?.toString() ?: "")
+            val amount = etAmount.text?.toString()?.trim()?.toDoubleOrNull()
+            viewModel.createPost(etContent.text?.toString() ?: "", amount)
         }
 
         observeViewModel()
     }
 
     private fun updatePostButtonState(contentLen: Int) {
-        val enabled = contentLen > 0
+        // Content is required for regular posts, but optional for challenge posts
+        // (the backend auto-generates a description when left blank).
+        val enabled = contentLen > 0 || viewModel.selectedChallenge.value != null
         btnPost.isEnabled = enabled
         btnPost.alpha = if (enabled) 1f else 0.5f
     }
@@ -173,12 +195,69 @@ class CreatePostFragment : Fragment() {
         dialog.show()
     }
 
+    private fun showChallengePickerBottomSheet() {
+        val dialog = BottomSheetDialog(requireContext())
+        val sheetView = LayoutInflater.from(requireContext())
+            .inflate(R.layout.bottom_sheet_challenge_picker, null)
+        dialog.setContentView(sheetView)
+
+        val rowNone = sheetView.findViewById<View>(R.id.row_none)
+        val ivNoneCheck = sheetView.findViewById<ImageView>(R.id.iv_none_check)
+        val challengesContainer = sheetView.findViewById<LinearLayout>(R.id.ll_challenges_container)
+        val tvNoChallenges = sheetView.findViewById<TextView>(R.id.tv_no_challenges)
+        val currentChallenge = viewModel.selectedChallenge.value
+        val challenges = viewModel.availableChallenges.value.orEmpty()
+
+        ivNoneCheck.visibility = if (currentChallenge == null) View.VISIBLE else View.GONE
+        rowNone.setOnClickListener { viewModel.clearChallenge(); dialog.dismiss() }
+
+        if (challenges.isEmpty()) {
+            tvNoChallenges.visibility = View.VISIBLE
+        } else {
+            challenges.forEach { challenge ->
+                val row = LayoutInflater.from(requireContext())
+                    .inflate(R.layout.item_challenge_picker_row, challengesContainer, false)
+                row.findViewById<TextView>(R.id.tv_challenge_title).text = challenge.title
+                row.findViewById<TextView>(R.id.tv_challenge_summary).text =
+                    "${challenge.summary} · ${challenge.percentComplete}%"
+                row.findViewById<ImageView>(R.id.iv_selected_check).visibility =
+                    if (currentChallenge?.id == challenge.id) View.VISIBLE else View.GONE
+                row.setOnClickListener { viewModel.selectChallenge(challenge); dialog.dismiss() }
+                challengesContainer.addView(row)
+            }
+        }
+
+        dialog.show()
+    }
+
     private fun observeViewModel() {
         layoutNoHubs.visibility = View.GONE
         rowHubSelector.visibility = View.VISIBLE
 
         viewModel.selectedHub.observe(viewLifecycleOwner) { hub ->
             tvSelectedHub.text = hub?.name ?: "Personal Post"
+            updatePostButtonState(etContent.text?.length ?: 0)
+        }
+
+        viewModel.availableChallenges.observe(viewLifecycleOwner) { challenges ->
+            val hasChallenges = challenges.isNotEmpty()
+            rowChallengeSelector.visibility = if (hasChallenges) View.VISIBLE else View.GONE
+            dividerChallenge.visibility = if (hasChallenges) View.VISIBLE else View.GONE
+            if (!hasChallenges) viewModel.clearChallenge()
+        }
+
+        viewModel.selectedChallenge.observe(viewLifecycleOwner) { challenge ->
+            tvSelectedChallenge.text = challenge?.title ?: "None — regular post"
+            rowAmount.visibility = if (challenge?.progressModel == ProgressModel.COUNT) View.VISIBLE else View.GONE
+            etContent.hint = if (challenge != null) {
+                "Add a note about your progress (optional)"
+            } else {
+                "What's on your mind?"
+            }
+            updatePostButtonState(etContent.text?.length ?: 0)
+        }
+
+        viewModel.currentStage.observe(viewLifecycleOwner) {
             updatePostButtonState(etContent.text?.length ?: 0)
         }
 
@@ -193,11 +272,18 @@ class CreatePostFragment : Fragment() {
 
         viewModel.isPosting.observe(viewLifecycleOwner) { posting ->
             pbPosting.visibility = if (posting) View.VISIBLE else View.GONE
-            btnPost.isEnabled = !posting && (etContent.text?.isNotBlank() == true)
+            if (posting) {
+                btnPost.isEnabled = false
+            } else {
+                updatePostButtonState(etContent.text?.length ?: 0)
+            }
         }
 
         viewModel.postSuccess.observe(viewLifecycleOwner) { success ->
-            if (success) findNavController().popBackStack(R.id.homeFragment, false)
+            if (success) {
+                if (returnToCaller) findNavController().popBackStack()
+                else findNavController().popBackStack(R.id.homeFragment, false)
+            }
         }
 
         viewModel.error.observe(viewLifecycleOwner) { err ->

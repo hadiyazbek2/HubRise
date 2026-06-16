@@ -47,7 +47,7 @@
         android:layout_width="wrap_content"
         android:layout_height="36dp"
         android:minWidth="0dp"
-        android:text="Mark Complete"
+        android:text="+ Add Progress Post"
         android:textSize="12sp"
         android:textColor="@color/white"
         android:background="@drawable/btn_primary"

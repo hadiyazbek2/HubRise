@@ -1,7 +1,6 @@
 package com.example.hubrise.data.api
 
 import com.example.hubrise.data.model.Challenge
-import com.example.hubrise.data.model.CountLogResponse
 import com.example.hubrise.data.model.CreateChallengeRequest
 import com.example.hubrise.data.model.CreateHubRequest
 import com.example.hubrise.data.model.CreatePostRequest
@@ -11,8 +10,6 @@ import com.example.hubrise.data.model.JoinLeaveResponse
 import com.example.hubrise.data.model.LeaderboardEntry
 import com.example.hubrise.data.model.PaginatedResponse
 import com.example.hubrise.data.model.Post
-import com.example.hubrise.data.model.StageCompleteResponse
-import com.example.hubrise.data.model.StreakCheckinResponse
 import okhttp3.MultipartBody
 import retrofit2.Response
 import retrofit2.http.Body
@@ -62,15 +59,6 @@ interface HubApiService {
 
     @GET("api/challenges/{id}/leaderboard/")
     suspend fun getLeaderboard(@Path("id") id: Int): Response<List<LeaderboardEntry>>
-
-    @POST("api/challenges/{id}/stages/{stageId}/complete/")
-    suspend fun completeStage(@Path("id") id: Int, @Path("stageId") stageId: Int): Response<StageCompleteResponse>
-
-    @POST("api/challenges/{id}/count/log/")
-    suspend fun logCountEntry(@Path("id") id: Int, @Body body: Map<String, Double> = emptyMap()): Response<CountLogResponse>
-
-    @POST("api/challenges/{id}/streak/checkin/")
-    suspend fun streakCheckin(@Path("id") id: Int): Response<StreakCheckinResponse>
 
     @GET("api/hubs/{id}/members/")
     suspend fun getHubMembers(@Path("id") id: Int): Response<List<HubMember>>

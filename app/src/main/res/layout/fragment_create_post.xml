@@ -96,6 +96,74 @@
         android:layout_height="1dp"
         android:background="@color/divider" />
 
+    <!-- Challenge selector row (only shown when a hub with challenges is selected) -->
+    <LinearLayout
+        android:id="@+id/row_challenge_selector"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="16dp"
+        android:background="@color/bg_card"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?attr/selectableItemBackground"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Challenge:"
+            android:textSize="14sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginEnd="8dp" />
+
+        <TextView
+            android:id="@+id/tv_selected_challenge"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="None — regular post"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="@color/blue_primary"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@android:drawable/arrow_down_float"
+            android:contentDescription="Select challenge" />
+
+    </LinearLayout>
+
+    <View
+        android:id="@+id/divider_challenge"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/divider"
+        android:visibility="gone" />
+
+    <!-- Amount field (only shown for count-based challenges) -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/row_amount"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="12dp"
+        style="@style/HubRiseTextInput"
+        android:hint="Amount (optional, defaults to the challenge's step size)"
+        android:visibility="gone">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/et_amount"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="numberDecimal"
+            android:textColor="@color/text_primary" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
     <!-- No hubs joined banner -->
     <LinearLayout
         android:id="@+id/layout_no_hubs"

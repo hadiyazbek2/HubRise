@@ -124,27 +124,3 @@ data class CreateChallengeRequest(
     @SerializedName("streak_config") val streakConfig: StreakConfigInput? = null,
 )
 
-// ---- Progress action responses ----
-
-data class StageCompleteResponse(
-    @SerializedName("stage_id") val stageId: Int,
-    val status: String,
-    @SerializedName("completed_stages") val completedStages: Int,
-    @SerializedName("total_stages") val totalStages: Int,
-    @SerializedName("is_complete") val isComplete: Boolean,
-)
-
-data class CountLogResponse(
-    @SerializedName("current_count") val currentCount: Double,
-    @SerializedName("target_count") val targetCount: Double,
-    @SerializedName("is_complete") val isComplete: Boolean,
-)
-
-data class StreakCheckinResponse(
-    @SerializedName("current_streak") val currentStreak: Int,
-    @SerializedName("longest_streak") val longestStreak: Int,
-    @SerializedName("total_checkins") val totalCheckins: Int,
-    @SerializedName("target_days") val targetDays: Int,
-    @SerializedName("is_complete") val isComplete: Boolean,
-    @SerializedName("checkin_calendar") val checkinCalendar: List<String>,
-)

@@ -7,7 +7,6 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.example.hubrise.data.model.Challenge
 import com.example.hubrise.data.model.LeaderboardEntry
-import com.example.hubrise.data.model.MyProgress
 import com.example.hubrise.data.repository.HubRepository
 import kotlinx.coroutines.launch
 
@@ -30,9 +29,6 @@ class ChallengeDetailViewModel(application: Application) : AndroidViewModel(appl
     private val _error = MutableLiveData<String?>(null)
     val error: LiveData<String?> = _error
 
-    private val _completedEvent = MutableLiveData<Boolean?>(null)
-    val completedEvent: LiveData<Boolean?> = _completedEvent
-
     fun load(challengeId: Int) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -54,57 +50,6 @@ class ChallengeDetailViewModel(application: Application) : AndroidViewModel(appl
         }
     }
 
-    fun completeStage(challengeId: Int, stageId: Int) {
-        viewModelScope.launch {
-            when (val r = repository.completeStage(challengeId, stageId)) {
-                is HubRepository.Result.Success -> {
-                    load(challengeId)
-                    if (r.data.isComplete) _completedEvent.value = true
-                }
-                is HubRepository.Result.Error -> _error.value = r.message
-            }
-        }
-    }
-
-    fun logCountEntry(challengeId: Int, amount: Double?) {
-        viewModelScope.launch {
-            when (val r = repository.logCountEntry(challengeId, amount)) {
-                is HubRepository.Result.Success -> {
-                    val current = _challenge.value ?: return@launch
-                    val updatedProgress = (current.myProgress ?: MyProgress()).copy(
-                        currentCount = r.data.currentCount,
-                        isComplete = r.data.isComplete,
-                    )
-                    _challenge.value = current.copy(myProgress = updatedProgress)
-                    loadLeaderboard(challengeId)
-                    if (r.data.isComplete) _completedEvent.value = true
-                }
-                is HubRepository.Result.Error -> _error.value = r.message
-            }
-        }
-    }
-
-    fun checkinStreak(challengeId: Int) {
-        viewModelScope.launch {
-            when (val r = repository.streakCheckin(challengeId)) {
-                is HubRepository.Result.Success -> {
-                    val current = _challenge.value ?: return@launch
-                    val updatedProgress = MyProgress(
-                        currentStreak = r.data.currentStreak,
-                        longestStreak = r.data.longestStreak,
-                        totalCheckins = r.data.totalCheckins,
-                        checkinCalendar = r.data.checkinCalendar,
-                        isComplete = r.data.isComplete,
-                    )
-                    _challenge.value = current.copy(myProgress = updatedProgress)
-                    loadLeaderboard(challengeId)
-                    if (r.data.isComplete) _completedEvent.value = true
-                }
-                is HubRepository.Result.Error -> _error.value = r.message
-            }
-        }
-    }
-
     fun deleteChallenge(challengeId: Int) {
         viewModelScope.launch {
             when (val r = repository.deleteChallenge(challengeId)) {
@@ -112,9 +57,5 @@ class ChallengeDetailViewModel(application: Application) : AndroidViewModel(appl
                 is HubRepository.Result.Error -> _error.value = r.message
             }
         }
-    }
-
-    fun clearCompletedEvent() {
-        _completedEvent.value = null
     }
 }

@@ -8,7 +8,6 @@ from .views import (
     ChallengeListCreateView,
     CommentDeleteView,
     CommentListCreateView,
-    CountLogView,
     CreatePostView,
     FeedPostsView,
     GlobalPostsView,
@@ -27,8 +26,6 @@ from .views import (
     PostValidationsListView,
     RecommendedHubsView,
     SearchView,
-    StageCompleteView,
-    StreakCheckinView,
     ToggleLikeView,
 )
 
@@ -61,9 +58,6 @@ urlpatterns = [
     path("hubs/<int:id>/challenges/", ChallengeListCreateView.as_view(), name="challenges-list"),
     path("challenges/<int:id>/", ChallengeDetailView.as_view(), name="challenge-detail"),
     path("challenges/<int:id>/leaderboard/", ChallengeLeaderboardView.as_view(), name="challenge-leaderboard"),
-    path("challenges/<int:id>/stages/<int:stage_id>/complete/", StageCompleteView.as_view(), name="challenge-stage-complete"),
-    path("challenges/<int:id>/count/log/", CountLogView.as_view(), name="challenge-count-log"),
-    path("challenges/<int:id>/streak/checkin/", StreakCheckinView.as_view(), name="challenge-streak-checkin"),
     path("posts/<int:id>/comments/", CommentListCreateView.as_view(), name="post-comments"),
     path("comments/<int:id>/", CommentDeleteView.as_view(), name="comment-delete"),
 ]

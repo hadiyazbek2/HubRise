@@ -8,7 +8,6 @@ import androidx.lifecycle.viewModelScope
 import com.example.hubrise.data.model.Challenge
 import com.example.hubrise.data.model.Hub
 import com.example.hubrise.data.model.Post
-import com.example.hubrise.data.model.ProgressModel
 import com.example.hubrise.data.repository.HubRepository
 import com.example.hubrise.data.repository.PostRepository
 import kotlinx.coroutines.launch
@@ -73,30 +72,6 @@ class HubDetailViewModel(application: Application) : AndroidViewModel(applicatio
             }
         }
     }
-
-    /** Only applies to count-based main challenges — stage/streak need their full detail screen. */
-    fun logMainChallengeProgress() {
-        val mainChallenge = _hub.value?.mainChallenge ?: return
-        if (mainChallenge.progressModel != ProgressModel.COUNT) return
-        viewModelScope.launch {
-            when (val r = repository.logCountEntry(mainChallenge.id)) {
-                is HubRepository.Result.Success -> {
-                    val percent = if (r.data.targetCount > 0) {
-                        ((r.data.currentCount / r.data.targetCount) * 100).toInt()
-                    } else 0
-                    val updated = mainChallenge.copy(
-                        percentComplete = percent,
-                        summary = "${formatNumber(r.data.currentCount)}/${formatNumber(r.data.targetCount)}",
-                    )
-                    _hub.value = _hub.value?.copy(mainChallenge = updated)
-                }
-                is HubRepository.Result.Error -> _error.value = r.message
-            }
-        }
-    }
-
-    private fun formatNumber(value: Double): String =
-        if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString()
 
     fun toggleValidate(post: Post) {
         viewModelScope.launch {

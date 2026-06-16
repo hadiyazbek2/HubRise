@@ -19,7 +19,6 @@ import com.example.hubrise.R
 import com.example.hubrise.data.model.Challenge
 import com.example.hubrise.data.model.ProgressModel
 import com.example.hubrise.ui.profile.UserProfileFragment
-import com.google.android.material.textfield.TextInputEditText
 
 class ChallengeDetailFragment : Fragment() {
 
@@ -41,7 +40,6 @@ class ChallengeDetailFragment : Fragment() {
     private lateinit var sectionCount: View
     private lateinit var pbCountProgress: ProgressBar
     private lateinit var tvCountProgressLabel: TextView
-    private lateinit var etLogAmount: TextInputEditText
     private lateinit var btnLogCount: Button
 
     // Stage section
@@ -79,7 +77,6 @@ class ChallengeDetailFragment : Fragment() {
         sectionCount = view.findViewById(R.id.section_count)
         pbCountProgress = view.findViewById(R.id.pb_count_progress)
         tvCountProgressLabel = view.findViewById(R.id.tv_count_progress_label)
-        etLogAmount = view.findViewById(R.id.et_log_amount)
         btnLogCount = view.findViewById(R.id.btn_log_count)
 
         sectionStage = view.findViewById(R.id.section_stage)
@@ -102,7 +99,9 @@ class ChallengeDetailFragment : Fragment() {
         rvLeaderboard.layoutManager = LinearLayoutManager(requireContext())
         rvLeaderboard.adapter = leaderboardAdapter
 
-        stageAdapter = StageProgressAdapter { stage -> viewModel.completeStage(challengeId, stage.id) }
+        // Tapping a stage's action button doesn't complete it directly anymore —
+        // it opens the post composer, since creating a post is now the only way to progress.
+        stageAdapter = StageProgressAdapter { navigateToCreatePost() }
         rvStages.layoutManager = LinearLayoutManager(requireContext())
         rvStages.adapter = stageAdapter
 
@@ -113,15 +112,26 @@ class ChallengeDetailFragment : Fragment() {
         challengeId = arguments?.getInt("challengeId") ?: return
         viewModel.load(challengeId)
 
-        btnLogCount.setOnClickListener {
-            val amount = etLogAmount.text?.toString()?.trim()?.toDoubleOrNull()
-            viewModel.logCountEntry(challengeId, amount)
-            etLogAmount.text?.clear()
-        }
-        btnCheckin.setOnClickListener { viewModel.checkinStreak(challengeId) }
+        btnLogCount.setOnClickListener { navigateToCreatePost() }
+        btnCheckin.setOnClickListener { navigateToCreatePost() }
         btnDelete.setOnClickListener { confirmDelete() }
 
         observeViewModel()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Picks up progress made via a post created on the Create Post screen.
+        if (challengeId != 0) viewModel.load(challengeId)
+    }
+
+    private fun navigateToCreatePost() {
+        val challenge = viewModel.challenge.value ?: return
+        val bundle = Bundle().apply {
+            putInt("hubId", challenge.hub)
+            putInt("challengeId", challenge.id)
+        }
+        findNavController().navigate(R.id.createPostFragment, bundle)
     }
 
     private fun confirmDelete() {
@@ -147,13 +157,6 @@ class ChallengeDetailFragment : Fragment() {
 
         viewModel.isLoading.observe(viewLifecycleOwner) { loading ->
             pbLoading.visibility = if (loading) View.VISIBLE else View.GONE
-        }
-
-        viewModel.completedEvent.observe(viewLifecycleOwner) { completed ->
-            if (completed == true) {
-                Toast.makeText(requireContext(), "🎉 Challenge complete!", Toast.LENGTH_LONG).show()
-                viewModel.clearCompletedEvent()
-            }
         }
 
         viewModel.deleted.observe(viewLifecycleOwner) { deleted ->
@@ -202,12 +205,7 @@ class ChallengeDetailFragment : Fragment() {
         tvCountProgressLabel.text = "${formatNumber(current)}/${formatNumber(target)} $unit".trim() +
             if (completed) "  ·  Completed! 🎉" else ""
 
-        btnLogCount.isEnabled = true
-        btnLogCount.text = if (config != null && config.entryIncrement != 1.0) {
-            "Log Entry (+${formatNumber(config.entryIncrement)})"
-        } else {
-            "Log Entry (+1)"
-        }
+        btnLogCount.text = "+ Add Progress Post"
     }
 
     private fun bindStageSection(challenge: Challenge) {
@@ -235,7 +233,7 @@ class ChallengeDetailFragment : Fragment() {
 
         val checkedInToday = progress?.lastCheckinDate == java.time.LocalDate.now().toString()
         btnCheckin.isEnabled = !checkedInToday
-        btnCheckin.text = if (checkedInToday) "Checked in today" else "Check In Today"
+        btnCheckin.text = if (checkedInToday) "Checked in today ✓" else "+ Add Progress Post"
     }
 
     private fun formatNumber(value: Double): String =

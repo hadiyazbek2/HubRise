@@ -674,3 +674,53 @@ Scope for this round (user-confirmed): **Layer 1 only** ("I believe this" peer v
 - A dedicated "who validated this post" screen/bottom sheet — the `GET /api/posts/<id>/validations/` endpoint exists and is fully tested, but no Android screen calls it yet. Currently the validator count is the only UI signal; tapping it doesn't drill into the list.
 - `linked_stage` proof attachment (photo/video evidence for `stage_proof` posts) — the FK exists on `Post`/`UserStageProgress`, but no upload UI was built; auto-generated posts currently have text content only.
 - A real-time/poll-based score update if someone else validates a post while it's on screen — relies on the existing pull-to-refresh / re-navigation patterns already in the app, no WebSocket/polling added.
+
+---
+
+## Part 6 — Progress-Only-Via-Posts: Removing Direct Progress Buttons (2026-06-16)
+
+User feedback: when a user wants to increase a count entry, complete a stage, or check in on a streak, there should be **no direct button** that does it instantly. Instead, the only way to make progress is to **create a post** and attach it to a specific challenge — submitting that post *is* the progress action.
+
+This round removed every direct "+1" / "Mark Complete" / "Check In Today" button in the app and moved all of that logic into the existing Create Post screen.
+
+### 6.1 Backend
+
+- `CreatePostView` (`POST /api/posts/`) now branches on an optional `challenge` field in the request body:
+  - No `challenge` → behaves exactly as before (regular post via `CreatePostSerializer`).
+  - `challenge` present → routes to one of three new private helper methods (`_create_stage_post`, `_create_count_post`, `_create_streak_post`) that perform the same progress mutation the old endpoints did (sequential stage enforcement, count increment, streak check-in with grace-day logic), then create the `Post` tagged with that challenge. The post's `content` is whatever the user typed; if left blank, the same auto-generated description used in Round 5 is used as a fallback.
+  - `stage` (required for stage challenges) and `amount` (optional for count challenges, defaults to `entry_increment`) are read directly from the request body.
+- **Deleted entirely**, including their URL routes: `StageCompleteView`, `CountLogView`, `StreakCheckinView`. These were the old direct-action endpoints; with progress only happening through `POST /api/posts/`, keeping them around would have been dead, unreachable-by-the-app code (and a second, inconsistent way to mutate progress).
+- No model/migration changes needed — same `Challenge`/`UserStageProgress`/`UserCountProgress`/`UserStreakProgress`/`Post` tables from Rounds 1 and 5.
+
+**Verified via HTTP smoke test:**
+- Confirmed the 3 deleted endpoints now return `404`.
+- Regular (non-challenge) post creation still works unaffected.
+- Created stage/count/streak posts through `/api/posts/` for all 3 models — content, auto-generated fallback text, sequential stage enforcement, and duplicate-checkin/repeat-stage rejection (`400`) all verified.
+- Confirmed `GET /api/challenges/<id>/` and `GET /api/hubs/<id>/` (`main_challenge`) reflect the updated progress immediately after a progress post is created.
+
+### 6.2 Android — Create Post screen gains a challenge picker
+
+- `CreatePostRequest` — added optional `challenge`, `stage`, `amount` fields.
+- `CreatePostViewModel`:
+  - `availableChallenges` — loaded automatically whenever a hub is selected (cleared when hub changes or "Personal Post" is chosen).
+  - `selectedChallenge` / `selectChallenge()` / `clearChallenge()`.
+  - `currentStage` — for stage-based challenges, automatically resolved as "the first stage with status != completed" by fetching the full challenge detail when a stage challenge is selected. The user never manually picks a stage — there's nothing to pick since the backend enforces strict sequential order anyway.
+  - `preselect(hubId, challengeId)` — new, used when the screen is opened from a Challenge Detail / Hub Detail "+ Add Progress Post" entry point instead of from scratch.
+  - `createPost(content, amount)` — content is allowed to be blank when a challenge is selected (backend auto-generates a description); still required for regular posts.
+- New bottom sheet `bottom_sheet_challenge_picker.xml` + `item_challenge_picker_row.xml`, mirroring the existing hub-picker pattern exactly (same `BottomSheetDialog` + manual row-inflation approach, not a RecyclerView, for consistency with `showHubPickerBottomSheet()`).
+- `fragment_create_post.xml` — added a "Challenge:" selector row (visible only when the selected hub actually has challenges) and an "Amount (optional)" field (visible only when the selected challenge is count-based).
+- `CreatePostFragment`:
+  - Reads `hubId`/`challengeId` from arguments for pre-selection; if `hubId` was passed in, treats this as "launched from elsewhere" and does a plain `popBackStack()` on success (returns to the caller) instead of the default `popBackStack(R.id.homeFragment, false)`.
+  - Post button enablement and the `et_content` hint text both now branch on whether a challenge is selected.
+
+### 6.3 Android — removing the direct-action entry points
+
+- **`ChallengeDetailFragment`** — the count section's "Log Entry" button, the streak section's "Check In Today" button, and each stage row's action button (`StageProgressAdapter`) no longer call a progress-mutation method directly. All three now call a single `navigateToCreatePost()` that opens `CreatePostFragment` with `hubId`/`challengeId` pre-filled. Button labels changed to "+ Add Progress Post" everywhere (the streak button still shows "Checked in today ✓" and disables itself client-side if `lastCheckinDate` is today, to avoid a pointless round trip that would just 400 on submit). Added `onResume()` to reload the challenge + leaderboard, so progress made via the post screen shows up immediately on return.
+- **`HubDetailFragment`** — the main-challenge card's action button used to be a direct "+1" for count challenges (calling `HubDetailViewModel.logMainChallengeProgress()`, which hit the now-deleted `count/log/` endpoint) and only navigated to `ChallengeDetailFragment` for stage/streak. Unified: **all three models now just navigate to `ChallengeDetailFragment`** — there's no special-cased inline action left on this card.
+- **Removed as dead code**, since nothing calls them anymore: `HubDetailViewModel.logMainChallengeProgress()` (+ its private `formatNumber()` helper), `ChallengeDetailViewModel.completeStage()`/`logCountEntry()`/`checkinStreak()`, `HubRepository.completeStage()`/`logCountEntry()`/`streakCheckin()`, the three corresponding `HubApiService` endpoint declarations, and the now-unreferenced `StageCompleteResponse`/`CountLogResponse`/`StreakCheckinResponse` data classes.
+
+**Verified:** `./gradlew :app:compileDebugKotlin` → BUILD SUCCESSFUL, no new warnings. `python manage.py check` → no issues.
+
+### 6.4 Net effect
+
+There is now exactly **one** way to make challenge progress anywhere in the app: open the post composer (via the bottom-nav "+", or via a "+ Add Progress Post" entry point that pre-fills the hub/challenge for you), optionally attach a challenge, write a note, and submit. The submission itself is the progress action — there is no separate confirmation step and no standalone increment/checkin/complete button left anywhere.
