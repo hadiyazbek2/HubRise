@@ -2,6 +2,8 @@ package com.example.hubrise.data.repository
 
 import com.example.hubrise.data.api.RetrofitClient
 import com.example.hubrise.data.model.Challenge
+import com.example.hubrise.data.model.ChallengeTemplate
+import com.example.hubrise.data.model.CompletionRequest
 import com.example.hubrise.data.model.CreateChallengeRequest
 import com.example.hubrise.data.model.CreateHubRequest
 import com.example.hubrise.data.model.CreatePostRequest
@@ -79,6 +81,16 @@ class HubRepository {
         else Result.Error("${r.code()}: ${r.errorBody()?.string()}")
     } catch (e: Exception) { Result.Error(e.message ?: "Network error") }
 
+    suspend fun getTemplates(
+        category: String? = null,
+        progressModel: String? = null,
+        search: String? = null,
+    ): Result<List<ChallengeTemplate>> = try {
+        val r = api.getTemplates(category, progressModel, search)
+        if (r.isSuccessful && r.body() != null) Result.Success(r.body()!!)
+        else Result.Error("${r.code()}: ${r.errorBody()?.string()}")
+    } catch (e: Exception) { Result.Error(e.message ?: "Network error") }
+
     suspend fun getChallenge(id: Int): Result<Challenge> = try {
         val r = api.getChallenge(id)
         if (r.isSuccessful && r.body() != null) Result.Success(r.body()!!)
@@ -93,6 +105,39 @@ class HubRepository {
 
     suspend fun getLeaderboard(challengeId: Int): Result<List<LeaderboardEntry>> = try {
         val r = api.getLeaderboard(challengeId)
+        if (r.isSuccessful && r.body() != null) Result.Success(r.body()!!)
+        else Result.Error("${r.code()}: ${r.errorBody()?.string()}")
+    } catch (e: Exception) { Result.Error(e.message ?: "Network error") }
+
+    suspend fun submitCompletionRequest(challengeId: Int, memberNote: String): Result<CompletionRequest> = try {
+        val body = if (memberNote.isNotBlank()) mapOf("member_note" to memberNote) else emptyMap()
+        val r = api.submitCompletionRequest(challengeId, body)
+        if (r.isSuccessful && r.body() != null) Result.Success(r.body()!!)
+        else Result.Error("${r.code()}: ${r.errorBody()?.string()}")
+    } catch (e: Exception) { Result.Error(e.message ?: "Network error") }
+
+    suspend fun getMyCompletionRequest(challengeId: Int): Result<CompletionRequest?> = try {
+        val r = api.getMyCompletionRequest(challengeId)
+        if (r.isSuccessful) Result.Success(r.body())
+        else Result.Error("${r.code()}: ${r.errorBody()?.string()}")
+    } catch (e: Exception) { Result.Error(e.message ?: "Network error") }
+
+    suspend fun getHubCompletionRequests(hubId: Int, status: String = "pending"): Result<List<CompletionRequest>> = try {
+        val r = api.getHubCompletionRequests(hubId, status)
+        if (r.isSuccessful && r.body() != null) Result.Success(r.body()!!)
+        else Result.Error("${r.code()}: ${r.errorBody()?.string()}")
+    } catch (e: Exception) { Result.Error(e.message ?: "Network error") }
+
+    suspend fun approveCompletionRequest(requestId: Int, adminNote: String): Result<CompletionRequest> = try {
+        val body = mutableMapOf("action" to "approve")
+        if (adminNote.isNotBlank()) body["admin_note"] = adminNote
+        val r = api.reviewCompletionRequest(requestId, body)
+        if (r.isSuccessful && r.body() != null) Result.Success(r.body()!!)
+        else Result.Error("${r.code()}: ${r.errorBody()?.string()}")
+    } catch (e: Exception) { Result.Error(e.message ?: "Network error") }
+
+    suspend fun rejectCompletionRequest(requestId: Int, adminNote: String): Result<CompletionRequest> = try {
+        val r = api.reviewCompletionRequest(requestId, mapOf("action" to "reject", "admin_note" to adminNote))
         if (r.isSuccessful && r.body() != null) Result.Success(r.body()!!)
         else Result.Error("${r.code()}: ${r.errorBody()?.string()}")
     } catch (e: Exception) { Result.Error(e.message ?: "Network error") }

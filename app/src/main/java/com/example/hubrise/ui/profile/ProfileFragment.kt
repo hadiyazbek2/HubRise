@@ -21,6 +21,7 @@ import com.example.hubrise.R
 import com.example.hubrise.data.api.RetrofitClient
 import com.example.hubrise.ui.auth.login.LoginActivity
 import com.example.hubrise.ui.home.PostAdapter
+import com.example.hubrise.utils.PostSupportHelper
 
 class ProfileFragment : Fragment() {
 
@@ -48,12 +49,16 @@ class ProfileFragment : Fragment() {
         val rvPosts = view.findViewById<RecyclerView>(R.id.rv_posts)
         val tvNoPosts = view.findViewById<TextView>(R.id.tv_no_posts)
 
+        val supportHelper = PostSupportHelper(this)
         val postsAdapter = PostAdapter(
             onUserClick = { /* own posts — no navigation needed */ },
             onHubClick = { hubId ->
                 val bundle = Bundle().apply { putInt("hubId", hubId) }
                 findNavController().navigate(R.id.hubDetailFragment, bundle)
-            }
+            },
+            onMentalSupportClick = { post -> supportHelper.showMentalSupportDialog(post) },
+            onPhysicalSupportClick = { post -> supportHelper.showPhysicalSupportDialog(post) },
+            onGiftClick = { post -> supportHelper.handleGiftClick(post) },
         )
         rvPosts.layoutManager = LinearLayoutManager(requireContext())
         rvPosts.adapter = postsAdapter
@@ -69,6 +74,7 @@ class ProfileFragment : Fragment() {
                             putInt("userId", profile?.id ?: 0)
                             putString("fullName", profile?.fullName ?: "")
                             putString("bio", profile?.bio ?: "")
+                            putString("wishlistUrl", profile?.wishlistUrl ?: "")
                             putString("avatarUrl", profile?.profilePictureUrl ?: "")
                         }
                         findNavController().navigate(R.id.editProfileFragment, bundle)

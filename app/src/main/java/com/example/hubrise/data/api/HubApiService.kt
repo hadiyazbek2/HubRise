@@ -1,6 +1,8 @@
 package com.example.hubrise.data.api
 
 import com.example.hubrise.data.model.Challenge
+import com.example.hubrise.data.model.ChallengeTemplate
+import com.example.hubrise.data.model.CompletionRequest
 import com.example.hubrise.data.model.CreateChallengeRequest
 import com.example.hubrise.data.model.CreateHubRequest
 import com.example.hubrise.data.model.CreatePostRequest
@@ -21,6 +23,7 @@ import retrofit2.http.POST
 import retrofit2.http.Part
 import retrofit2.http.PartMap
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 interface HubApiService {
 
@@ -51,6 +54,13 @@ interface HubApiService {
     @POST("api/hubs/{id}/challenges/")
     suspend fun createChallenge(@Path("id") hubId: Int, @Body request: CreateChallengeRequest): Response<Challenge>
 
+    @GET("api/templates/")
+    suspend fun getTemplates(
+        @Query("category") category: String? = null,
+        @Query("progress_model") progressModel: String? = null,
+        @Query("search") search: String? = null,
+    ): Response<List<ChallengeTemplate>>
+
     @GET("api/challenges/{id}/")
     suspend fun getChallenge(@Path("id") id: Int): Response<Challenge>
 
@@ -59,6 +69,27 @@ interface HubApiService {
 
     @GET("api/challenges/{id}/leaderboard/")
     suspend fun getLeaderboard(@Path("id") id: Int): Response<List<LeaderboardEntry>>
+
+    @POST("api/challenges/{id}/completion-request/")
+    suspend fun submitCompletionRequest(
+        @Path("id") id: Int,
+        @Body body: Map<String, String> = emptyMap(),
+    ): Response<CompletionRequest>
+
+    @GET("api/challenges/{id}/completion-request/mine/")
+    suspend fun getMyCompletionRequest(@Path("id") id: Int): Response<CompletionRequest?>
+
+    @GET("api/hubs/{id}/completion-requests/")
+    suspend fun getHubCompletionRequests(
+        @Path("id") id: Int,
+        @Query("status") status: String = "pending",
+    ): Response<List<CompletionRequest>>
+
+    @PATCH("api/completion-requests/{id}/")
+    suspend fun reviewCompletionRequest(
+        @Path("id") id: Int,
+        @Body body: Map<String, String>,
+    ): Response<CompletionRequest>
 
     @GET("api/hubs/{id}/members/")
     suspend fun getHubMembers(@Path("id") id: Int): Response<List<HubMember>>

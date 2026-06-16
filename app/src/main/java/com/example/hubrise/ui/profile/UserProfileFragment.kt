@@ -20,6 +20,7 @@ import coil.transform.CircleCropTransformation
 import com.example.hubrise.R
 import com.example.hubrise.data.api.RetrofitClient
 import com.example.hubrise.ui.home.PostAdapter
+import com.example.hubrise.utils.PostSupportHelper
 
 class UserProfileFragment : Fragment() {
 
@@ -59,6 +60,7 @@ class UserProfileFragment : Fragment() {
 
         btnBack.setOnClickListener { findNavController().popBackStack() }
 
+        val supportHelper = PostSupportHelper(this)
         val postsAdapter = PostAdapter(
             onUserClick = { authorId ->
                 if (authorId != userId) {
@@ -69,7 +71,10 @@ class UserProfileFragment : Fragment() {
             onHubClick = { hubId ->
                 val bundle = Bundle().apply { putInt("hubId", hubId) }
                 findNavController().navigate(R.id.hubDetailFragment, bundle)
-            }
+            },
+            onMentalSupportClick = { post -> supportHelper.showMentalSupportDialog(post) },
+            onPhysicalSupportClick = { post -> supportHelper.showPhysicalSupportDialog(post) },
+            onGiftClick = { post -> supportHelper.handleGiftClick(post) },
         )
         rvPosts.layoutManager = LinearLayoutManager(requireContext())
         rvPosts.adapter = postsAdapter

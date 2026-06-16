@@ -27,8 +27,13 @@ class UserRepository {
         else Result.Error("${r.code()}: ${r.errorBody()?.string()}")
     } catch (e: Exception) { Result.Error(e.message ?: "Network error") }
 
-    suspend fun updateProfile(userId: Int, fullName: String, bio: String): Result<UpdateProfileResponse> = try {
-        val r = api.updateProfile(userId, UpdateProfileRequest(fullName = fullName, bio = bio))
+    suspend fun updateProfile(
+        userId: Int,
+        fullName: String,
+        bio: String,
+        wishlistUrl: String? = null,
+    ): Result<UpdateProfileResponse> = try {
+        val r = api.updateProfile(userId, UpdateProfileRequest(fullName = fullName, bio = bio, wishlistUrl = wishlistUrl))
         if (r.isSuccessful && r.body() != null) Result.Success(r.body()!!)
         else Result.Error("${r.code()}: ${r.errorBody()?.string()}")
     } catch (e: Exception) { Result.Error(e.message ?: "Network error") }

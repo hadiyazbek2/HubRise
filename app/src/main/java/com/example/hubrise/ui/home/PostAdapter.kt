@@ -18,6 +18,7 @@ import coil.load
 import coil.transform.CircleCropTransformation
 import com.example.hubrise.R
 import com.example.hubrise.data.model.Post
+import com.example.hubrise.data.model.PostType
 
 class PostAdapter(
     private val currentUserId: Int = -1,
@@ -26,6 +27,9 @@ class PostAdapter(
     private val onUserClick: (authorId: Int) -> Unit = {},
     private val onHubClick: (hubId: Int) -> Unit = {},
     private val onValidateClick: (Post) -> Unit = {},
+    private val onMentalSupportClick: (Post) -> Unit = {},
+    private val onPhysicalSupportClick: (Post) -> Unit = {},
+    private val onGiftClick: (Post) -> Unit = {},
 ) : ListAdapter<Post, PostAdapter.PostViewHolder>(DiffCallback) {
 
     inner class PostViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -42,6 +46,10 @@ class PostAdapter(
         private val rowValidate: View = view.findViewById(R.id.row_validate)
         private val btnValidate: ImageView = view.findViewById(R.id.btn_validate)
         private val tvValidateLabel: TextView = view.findViewById(R.id.tv_validate_label)
+        private val rowSupport: View = view.findViewById(R.id.row_support)
+        private val btnSupportMental: View = view.findViewById(R.id.btn_support_mental)
+        private val btnSupportPhysical: View = view.findViewById(R.id.btn_support_physical)
+        private val btnSupportGift: View = view.findViewById(R.id.btn_support_gift)
 
         fun bind(post: Post) {
             tvUsername.text = post.authorUsername
@@ -96,10 +104,22 @@ class PostAdapter(
             btnComment.setOnClickListener { onCommentClick(post) }
 
             applyValidateState(post)
+            applySupportRow(post)
+        }
+
+        private fun applySupportRow(post: Post) {
+            if (post.postType != PostType.ANNOUNCEMENT) {
+                rowSupport.visibility = View.GONE
+                return
+            }
+            rowSupport.visibility = View.VISIBLE
+            btnSupportMental.setOnClickListener { onMentalSupportClick(post) }
+            btnSupportPhysical.setOnClickListener { onPhysicalSupportClick(post) }
+            btnSupportGift.setOnClickListener { onGiftClick(post) }
         }
 
         private fun applyValidateState(post: Post) {
-            if (post.challenge == null) {
+            if (post.challenge == null || post.postType !in PostType.CHALLENGE_TYPES) {
                 rowValidate.visibility = View.GONE
                 return
             }

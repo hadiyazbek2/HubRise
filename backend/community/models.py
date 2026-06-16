@@ -243,6 +243,11 @@ class ChallengeCountConfig(models.Model):
     unit_label = models.CharField(max_length=50, blank=True, default="")
     entry_increment = models.DecimalField(max_digits=10, decimal_places=2, default=1)
     require_proof_per_entry = models.BooleanField(default=False)
+    # False (default): each logged amount is added to the running total — good for
+    # tally-style goals (books read, posts published, separate workout sessions).
+    # True: each logged amount IS the new total — good for goals where the member
+    # already tracks a cumulative number elsewhere (total km run, total $ saved).
+    is_cumulative = models.BooleanField(default=False)
 
     def __str__(self) -> str:
         return f"{self.challenge.title} count config"
@@ -325,3 +330,110 @@ class PostValidation(models.Model):
 
     def __str__(self) -> str:
         return f"{self.validator.username} validated post:{self.post_id} (weight {self.weight})"
+
+
+# ---------------------------------------------------------------------------
+# Layer 3 — Admin Final Review
+# ---------------------------------------------------------------------------
+
+class CompletionRequest(models.Model):
+    STATUS_PENDING = "pending"
+    STATUS_APPROVED = "approved"
+    STATUS_REJECTED = "rejected"
+    STATUS_CHOICES = (
+        (STATUS_PENDING, "Pending"),
+        (STATUS_APPROVED, "Approved"),
+        (STATUS_REJECTED, "Rejected"),
+    )
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="completion_requests")
+    challenge = models.ForeignKey(Challenge, on_delete=models.CASCADE, related_name="completion_requests")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    member_note = models.TextField(blank=True)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    admin_note = models.TextField(blank=True)
+    announcement_post = models.ForeignKey(Post, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+
+    class Meta:
+        ordering = ["-submitted_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "challenge"],
+                condition=models.Q(status="pending"),
+                name="unique_pending_completion_request",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user.username} - {self.challenge.title}: {self.status}"
+
+
+# ---------------------------------------------------------------------------
+# Template System — read-only blueprints applied at challenge-creation time.
+# Applying a template copies its stages/config into the new challenge; the
+# new rows are never linked back to the template (it stays untouched).
+# ---------------------------------------------------------------------------
+
+class ChallengeTemplate(models.Model):
+    CATEGORY_FITNESS = "fitness"
+    CATEGORY_FINANCE = "finance"
+    CATEGORY_LEARNING = "learning"
+    CATEGORY_READING = "reading"
+    CATEGORY_MINDFULNESS = "mindfulness"
+    CATEGORY_CREATIVE = "creative"
+    CATEGORY_CAREER = "career"
+    CATEGORY_OTHER = "other"
+    CATEGORY_CHOICES = (
+        (CATEGORY_FITNESS, "Fitness"),
+        (CATEGORY_FINANCE, "Finance"),
+        (CATEGORY_LEARNING, "Learning"),
+        (CATEGORY_READING, "Reading"),
+        (CATEGORY_MINDFULNESS, "Mindfulness"),
+        (CATEGORY_CREATIVE, "Creative"),
+        (CATEGORY_CAREER, "Career"),
+        (CATEGORY_OTHER, "Other"),
+    )
+
+    name = models.CharField(max_length=120)
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default=CATEGORY_OTHER)
+    progress_model = models.CharField(max_length=10, choices=Challenge.MODEL_CHOICES)
+    description = models.TextField(blank=True)
+    is_official = models.BooleanField(default=False)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    use_count = models.PositiveIntegerField(default=0)
+
+    # Default config snapshots (templates aren't linked to live Stage/Config rows).
+    count_target = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    count_unit_label = models.CharField(max_length=50, blank=True, default="")
+    count_entry_increment = models.DecimalField(max_digits=10, decimal_places=2, default=1)
+    streak_target_days = models.PositiveIntegerField(null=True, blank=True)
+    streak_frequency = models.CharField(max_length=10, default=ChallengeStreakConfig.FREQ_DAILY)
+    streak_grace_days = models.PositiveIntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-use_count", "name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class TemplateStage(models.Model):
+    template = models.ForeignKey(ChallengeTemplate, on_delete=models.CASCADE, related_name="stages")
+    order_index = models.PositiveIntegerField()
+    title = models.CharField(max_length=120)
+    description = models.TextField(blank=True)
+    proof_type = models.CharField(max_length=10, choices=ChallengeStage.PROOF_CHOICES, default=ChallengeStage.PROOF_ANY)
+
+    class Meta:
+        ordering = ["order_index"]
+
+    def __str__(self) -> str:
+        return f"{self.template.name} - Stage {self.order_index}: {self.title}"

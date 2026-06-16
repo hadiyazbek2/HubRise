@@ -49,6 +49,7 @@ class EditProfileFragment : Fragment() {
         }
         val initialFullName = arguments?.getString("fullName") ?: ""
         val initialBio = arguments?.getString("bio") ?: ""
+        val initialWishlistUrl = arguments?.getString("wishlistUrl") ?: ""
         val avatarUrl = arguments?.getString("avatarUrl")
 
         val btnBack = view.findViewById<ImageView>(R.id.btn_back)
@@ -56,10 +57,12 @@ class EditProfileFragment : Fragment() {
         val ivAvatar = view.findViewById<ImageView>(R.id.iv_avatar)
         val etFullName = view.findViewById<TextInputEditText>(R.id.et_full_name)
         val etBio = view.findViewById<TextInputEditText>(R.id.et_bio)
+        val etWishlistUrl = view.findViewById<TextInputEditText>(R.id.et_wishlist_url)
         val pbSaving = view.findViewById<ProgressBar>(R.id.pb_saving)
 
         etFullName.setText(initialFullName)
         etBio.setText(initialBio)
+        etWishlistUrl.setText(initialWishlistUrl)
 
         ivAvatar.load(RetrofitClient.absoluteUrl(avatarUrl)) {
             transformations(CircleCropTransformation())
@@ -76,8 +79,9 @@ class EditProfileFragment : Fragment() {
         btnSave.setOnClickListener {
             val fullName = etFullName.text?.toString()?.trim() ?: ""
             val bio = etBio.text?.toString()?.trim() ?: ""
+            val wishlistUrl = etWishlistUrl.text?.toString()?.trim() ?: ""
             val imagePart = selectedImageUri?.let { createImagePart(it) }
-            viewModel.saveProfile(userId, fullName, bio, imagePart)
+            viewModel.saveProfile(userId, fullName, bio, wishlistUrl, imagePart)
         }
 
         viewModel.isSaving.observe(viewLifecycleOwner) { saving ->

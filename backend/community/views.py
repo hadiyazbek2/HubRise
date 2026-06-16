@@ -13,14 +13,16 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.models import UserFollow, UserProfile
+from accounts.models import Notification, UserFollow, UserProfile
 
 from .models import (
     Challenge,
     ChallengeCountConfig,
     ChallengeStage,
     ChallengeStreakConfig,
+    ChallengeTemplate,
     Comment,
+    CompletionRequest,
     Hub,
     HubMembership,
     Post,
@@ -31,7 +33,9 @@ from .models import (
     UserStreakProgress,
 )
 from .serializers import (
+    ChallengeTemplateSerializer,
     CommentSerializer,
+    CompletionRequestSerializer,
     CreatePostSerializer,
     HubSerializer,
     PostSerializer,
@@ -288,24 +292,35 @@ class CreatePostView(generics.CreateAPIView):
 
         amount = request.data.get("amount")
         try:
-            increment = Decimal(str(amount)) if amount is not None else config.entry_increment
+            amount_value = Decimal(str(amount)) if amount is not None else config.entry_increment
         except InvalidOperation:
             return Response({"detail": "Invalid amount."}, status=status.HTTP_400_BAD_REQUEST)
-        if increment <= 0:
+        if amount_value <= 0:
             return Response({"detail": "amount must be positive."}, status=status.HTTP_400_BAD_REQUEST)
 
         progress, _ = UserCountProgress.objects.get_or_create(user=request.user, challenge=challenge)
-        progress.current_count = progress.current_count + increment
+        if config.is_cumulative:
+            # The member already tracks their own running total (km run, $ saved) and
+            # just reports it — each entry IS the new total, not an amount to add.
+            progress.current_count = amount_value
+        else:
+            progress.current_count = progress.current_count + amount_value
         if not progress.is_complete and progress.current_count >= config.target_count:
             progress.is_complete = True
             progress.completed_at = timezone.now()
         progress.save()
 
         unit = f" {config.unit_label}" if config.unit_label else ""
-        default_content = (
-            f"📈 Logged +{float(increment):g} — {float(progress.current_count):g}/{float(config.target_count):g}{unit}"
-            f" — {challenge.title}"
-        )
+        if config.is_cumulative:
+            default_content = (
+                f"📈 Now at {float(progress.current_count):g}/{float(config.target_count):g}{unit}"
+                f" — {challenge.title}"
+            )
+        else:
+            default_content = (
+                f"📈 Logged +{float(amount_value):g} — {float(progress.current_count):g}/{float(config.target_count):g}{unit}"
+                f" — {challenge.title}"
+            )
         post = Post.objects.create(
             author=request.user,
             hub=challenge.hub,
@@ -515,13 +530,27 @@ class ChallengeListCreateView(generics.ListCreateAPIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        title = str(request.data.get("title", "")).strip()
+        # Applying a template just supplies defaults — anything the client
+        # explicitly sends (title, stages, config, ...) still wins. The
+        # template itself is never modified or linked to the new challenge.
+        template = None
+        template_id = request.data.get("template_id")
+        if template_id:
+            template = get_object_or_404(ChallengeTemplate, id=template_id)
+
+        title = str(request.data.get("title") or (template.name if template else "")).strip()
         if not title:
             return Response({"detail": "Title is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        progress_model = request.data.get("progress_model", Challenge.MODEL_COUNT)
+        progress_model = request.data.get("progress_model") or (
+            template.progress_model if template else Challenge.MODEL_COUNT
+        )
         if progress_model not in dict(Challenge.MODEL_CHOICES):
             return Response({"detail": "Invalid progress_model."}, status=status.HTTP_400_BAD_REQUEST)
+
+        description = request.data.get("description")
+        if description is None:
+            description = template.description if template else ""
 
         is_main_requested = bool(request.data.get("is_main", False))
         if is_main_requested and membership.role != HubMembership.ROLE_ADMIN:
@@ -538,7 +567,12 @@ class ChallengeListCreateView(generics.ListCreateAPIView):
         streak_kwargs = None
 
         if progress_model == Challenge.MODEL_STAGE:
-            stages = request.data.get("stages") or []
+            stages = request.data.get("stages")
+            if not stages and template and template.progress_model == Challenge.MODEL_STAGE:
+                stages = [
+                    {"title": s.title, "description": s.description, "proof_type": s.proof_type}
+                    for s in template.stages.all()
+                ]
             if not stages:
                 return Response({"detail": "At least one stage is required."}, status=status.HTTP_400_BAD_REQUEST)
             for index, stage_data in enumerate(stages, start=1):
@@ -554,7 +588,14 @@ class ChallengeListCreateView(generics.ListCreateAPIView):
                     "is_milestone": bool(stage_data.get("is_milestone", False)),
                 })
         elif progress_model == Challenge.MODEL_COUNT:
-            count_data = request.data.get("count_config") or {}
+            count_data = request.data.get("count_config")
+            if not count_data and template and template.progress_model == Challenge.MODEL_COUNT:
+                count_data = {
+                    "target_count": template.count_target,
+                    "unit_label": template.count_unit_label,
+                    "entry_increment": template.count_entry_increment,
+                }
+            count_data = count_data or {}
             try:
                 target = Decimal(str(count_data.get("target_count")))
             except (InvalidOperation, TypeError):
@@ -566,9 +607,17 @@ class ChallengeListCreateView(generics.ListCreateAPIView):
                 "unit_label": str(count_data.get("unit_label", "")),
                 "entry_increment": count_data.get("entry_increment", 1),
                 "require_proof_per_entry": bool(count_data.get("require_proof_per_entry", False)),
+                "is_cumulative": bool(count_data.get("is_cumulative", False)),
             }
         else:  # streak
-            streak_data = request.data.get("streak_config") or {}
+            streak_data = request.data.get("streak_config")
+            if not streak_data and template and template.progress_model == Challenge.MODEL_STREAK:
+                streak_data = {
+                    "target_days": template.streak_target_days,
+                    "frequency": template.streak_frequency,
+                    "grace_days": template.streak_grace_days,
+                }
+            streak_data = streak_data or {}
             try:
                 target_days = int(streak_data.get("target_days"))
             except (TypeError, ValueError):
@@ -589,7 +638,7 @@ class ChallengeListCreateView(generics.ListCreateAPIView):
             challenge = Challenge.objects.create(
                 hub=hub,
                 title=title,
-                description=str(request.data.get("description", "")),
+                description=str(description),
                 progress_model=progress_model,
                 is_main=is_main,
                 created_by=request.user,
@@ -603,10 +652,35 @@ class ChallengeListCreateView(generics.ListCreateAPIView):
             elif streak_kwargs is not None:
                 ChallengeStreakConfig.objects.create(challenge=challenge, **streak_kwargs)
 
+            if template:
+                ChallengeTemplate.objects.filter(id=template.id).update(use_count=F("use_count") + 1)
+
         return Response(
             ChallengeSerializer(challenge, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
         )
+
+
+class TemplateListView(APIView):
+    """Read-only catalog of official challenge templates. No auth restriction
+    beyond being logged in — templates aren't hub-scoped."""
+
+    def get(self, request):
+        qs = ChallengeTemplate.objects.filter(is_official=True).prefetch_related("stages")
+
+        category = request.query_params.get("category")
+        if category:
+            qs = qs.filter(category=category)
+
+        progress_model = request.query_params.get("progress_model")
+        if progress_model:
+            qs = qs.filter(progress_model=progress_model)
+
+        search = request.query_params.get("search")
+        if search:
+            qs = qs.filter(Q(name__icontains=search) | Q(description__icontains=search))
+
+        return Response(ChallengeTemplateSerializer(qs, many=True, context={"request": request}).data)
 
 
 def ensure_challenge_admin(user, challenge) -> bool:
@@ -656,6 +730,7 @@ class ChallengeDetailView(APIView):
                 "unit_label": config.unit_label if config else "",
                 "entry_increment": config.entry_increment if config else 1,
                 "require_proof_per_entry": config.require_proof_per_entry if config else False,
+                "is_cumulative": config.is_cumulative if config else False,
             }
             data["my_progress"] = {
                 "current_count": progress.current_count if progress else 0,
@@ -747,6 +822,167 @@ class ChallengeLeaderboardView(APIView):
                 "score": score,
             })
         return Response(data)
+
+
+class CompletionRequestSubmitView(APIView):
+    """Layer 3 — member submits a completion request once they've finished a challenge.
+    Approval (not the completion itself) is what triggers the public announcement."""
+
+    def post(self, request, id: int):
+        challenge = get_object_or_404(Challenge, id=id)
+        if not HubMembership.objects.filter(user=request.user, hub=challenge.hub).exists():
+            return Response(
+                {"detail": "You must join the hub to submit a completion request."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if not has_completed_challenge(request.user, challenge):
+            return Response({"detail": "You have not completed this challenge yet."}, status=status.HTTP_400_BAD_REQUEST)
+
+        existing = (
+            CompletionRequest.objects.filter(user=request.user, challenge=challenge)
+            .order_by("-submitted_at")
+            .first()
+        )
+        if existing and existing.status in (CompletionRequest.STATUS_PENDING, CompletionRequest.STATUS_APPROVED):
+            return Response(
+                {"detail": "You already have a pending or approved request for this challenge."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        member_note = str(request.data.get("member_note", "")).strip()
+        completion_request = CompletionRequest.objects.create(
+            user=request.user, challenge=challenge, member_note=member_note
+        )
+
+        admins = HubMembership.objects.filter(
+            hub=challenge.hub, role=HubMembership.ROLE_ADMIN
+        ).select_related("user")
+        for membership in admins:
+            if membership.user_id != request.user.id:
+                Notification.objects.create(
+                    recipient=membership.user,
+                    sender=request.user,
+                    notification_type=Notification.TYPE_COMPLETION_SUBMITTED,
+                    challenge=challenge,
+                )
+
+        return Response(
+            CompletionRequestSerializer(completion_request, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class MyCompletionRequestView(APIView):
+    """Lets a member check the status of their latest completion request for a challenge,
+    so the app can show Pending/Approved/Rejected instead of the submit button."""
+
+    def get(self, request, id: int):
+        challenge = get_object_or_404(Challenge, id=id)
+        latest = (
+            CompletionRequest.objects.filter(user=request.user, challenge=challenge)
+            .order_by("-submitted_at")
+            .first()
+        )
+        if not latest:
+            return Response(None)
+        return Response(CompletionRequestSerializer(latest, context={"request": request}).data)
+
+
+class HubCompletionRequestsListView(generics.ListAPIView):
+    """Admin-only: completion requests across all of a hub's challenges.
+    Defaults to pending (for the Hub Settings badge count); pass
+    ?status=approved|rejected|all to see the review history too."""
+
+    serializer_class = CompletionRequestSerializer
+
+    def get_queryset(self):
+        hub = get_object_or_404(Hub, id=self.kwargs["id"])
+        qs = CompletionRequest.objects.filter(challenge__hub=hub).select_related(
+            "user", "user__profile", "challenge", "reviewed_by"
+        )
+        status_filter = self.request.query_params.get("status", CompletionRequest.STATUS_PENDING)
+        if status_filter != "all":
+            qs = qs.filter(status=status_filter)
+        return qs
+
+    def list(self, request, *args, **kwargs):
+        hub = get_object_or_404(Hub, id=self.kwargs["id"])
+        is_admin = (
+            hub.created_by_id == request.user.id
+            or HubMembership.objects.filter(user=request.user, hub=hub, role=HubMembership.ROLE_ADMIN).exists()
+        )
+        if not is_admin:
+            return Response({"detail": "Only hub admins can view completion requests."}, status=status.HTTP_403_FORBIDDEN)
+        return super().list(request, *args, **kwargs)
+
+
+class CompletionRequestReviewView(APIView):
+    """Admin approves or rejects a pending completion request.
+    Approval auto-creates a pinned-style announcement post in the hub feed."""
+
+    def patch(self, request, id: int):
+        completion_request = get_object_or_404(CompletionRequest, id=id)
+        challenge = completion_request.challenge
+
+        if not ensure_challenge_admin(request.user, challenge):
+            return Response(
+                {"detail": "Only the challenge creator or a hub admin can review this."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if completion_request.status != CompletionRequest.STATUS_PENDING:
+            return Response({"detail": "This request has already been reviewed."}, status=status.HTTP_400_BAD_REQUEST)
+
+        action = request.data.get("action")
+        admin_note = str(request.data.get("admin_note", "")).strip()
+
+        if action == "approve":
+            completion_request.status = CompletionRequest.STATUS_APPROVED
+            completion_request.admin_note = admin_note
+            completion_request.reviewed_at = timezone.now()
+            completion_request.reviewed_by = request.user
+
+            content = f"🎉 @{completion_request.user.username} completed \"{challenge.title}\"!"
+            if admin_note:
+                content += f"\n\n{admin_note}"
+            announcement = Post.objects.create(
+                author=completion_request.user,
+                hub=challenge.hub,
+                post_type=Post.TYPE_ANNOUNCEMENT,
+                challenge=challenge,
+                content=content,
+            )
+            completion_request.announcement_post = announcement
+            completion_request.save()
+
+            Notification.objects.create(
+                recipient=completion_request.user,
+                sender=request.user,
+                notification_type=Notification.TYPE_COMPLETION_APPROVED,
+                challenge=challenge,
+            )
+        elif action == "reject":
+            if len(admin_note) < 20:
+                return Response(
+                    {"detail": "A rejection note of at least 20 characters is required."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            completion_request.status = CompletionRequest.STATUS_REJECTED
+            completion_request.admin_note = admin_note
+            completion_request.reviewed_at = timezone.now()
+            completion_request.reviewed_by = request.user
+            completion_request.save()
+
+            Notification.objects.create(
+                recipient=completion_request.user,
+                sender=request.user,
+                notification_type=Notification.TYPE_COMPLETION_REJECTED,
+                challenge=challenge,
+            )
+        else:
+            return Response({"detail": "action must be 'approve' or 'reject'."}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(CompletionRequestSerializer(completion_request, context={"request": request}).data)
 
 
 class CommentListCreateView(generics.ListCreateAPIView):

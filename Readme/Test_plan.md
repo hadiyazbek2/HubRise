@@ -724,3 +724,209 @@ This round removed every direct "+1" / "Mark Complete" / "Check In Today" button
 ### 6.4 Net effect
 
 There is now exactly **one** way to make challenge progress anywhere in the app: open the post composer (via the bottom-nav "+", or via a "+ Add Progress Post" entry point that pre-fills the hub/challenge for you), optionally attach a challenge, write a note, and submit. The submission itself is the progress action — there is no separate confirmation step and no standalone increment/checkin/complete button left anywhere.
+
+---
+
+## Part 7 — HubChallenge Spec Adoption: Round 3, Layer 3 — Admin Final Review (2026-06-16)
+
+User-confirmed scope: the **core loop only** — completion request → admin approve/reject → announcement post. The auto-generated review timeline (gap markers, stage-event interleaving), the "request more proof" soft-reject action, and the 5-day/10-day reminder cron job were explicitly left out of this round.
+
+### 7.1 Backend — Data Model
+
+- New model `CompletionRequest` (`community/models.py`): `user`, `challenge` FKs, `status` (pending/approved/rejected), `member_note`, `submitted_at`, `reviewed_at`, `reviewed_by`, `admin_note`, `announcement_post` (FK to the `Post` created on approval). A partial unique constraint (`condition=Q(status="pending")`) prevents two pending requests for the same `(user, challenge)` pair at the DB level — confirmed SQLite applies this migration with no prompt, since SQLite supports partial indexes.
+- `Notification` (`accounts/models.py`) gained 3 new types — `completion_submitted`, `completion_approved`, `completion_rejected` — and a new nullable `challenge` FK (string-referenced as `"community.Challenge"`, same pattern already used for the existing `post` FK, so no circular-import issue).
+- No changes needed to `Challenge`/`UserStageProgress`/`UserCountProgress`/`UserStreakProgress` — completion requests read those tables but don't modify them.
+- Two migrations, both additive, both applied with zero interactive prompts: `community/migrations/0012_completionrequest.py`, `accounts/migrations/0006_notification_challenge_and_more.py`.
+
+### 7.2 Backend — Views (`community/views.py`)
+
+- `CompletionRequestSubmitView` — `POST /api/challenges/<id>/completion-request/`. Reuses the `has_completed_challenge()` helper from Round 2 (Layer 1) to verify eligibility — same function, two different consumers now. Rejects with 409 if a pending-or-approved request already exists for that `(user, challenge)`; notifies every hub admin except the submitter themselves.
+- `MyCompletionRequestView` — `GET /api/challenges/<id>/completion-request/mine/` — lets the member's own UI show Pending/Approved/Rejected instead of a blind "Submit" button. Returns a bare JSON `null` if no request has ever been submitted (confirmed Android's `Response<CompletionRequest?>` parses that correctly).
+- `HubCompletionRequestsListView` — `GET /api/hubs/<id>/completion-requests/`, admin-gated (creator or `HubMembership.role=admin`), lists only `pending` requests across all the hub's challenges.
+- `CompletionRequestReviewView` — `PATCH /api/completion-requests/<id>/`, body `{action: "approve"|"reject", admin_note?}`:
+  - Reuses `ensure_challenge_admin()` from Round 1 for the permission check.
+  - Blocks re-reviewing an already-reviewed request (400).
+  - **Approve** → creates a `Post` (`post_type=admin_announcement`, `challenge` set) with auto-generated celebratory content + the admin's optional note appended; links it back via `completion_request.announcement_post`; notifies the member.
+  - **Reject** → enforces the spec's "minimum 20 characters" rule on `admin_note` server-side (400 if shorter); notifies the member.
+
+### 7.3 Backend Verification
+
+Full HTTP smoke test via Django's `Client` + JWT covering the entire loop end-to-end:
+1. Submitting before completion → 400.
+2. Logging progress to completion via a post (Round 6's flow), then submitting → 201, correct serialized fields.
+3. Duplicate pending submission → 409.
+4. Member's own status check → `"pending"`.
+5. Non-admin listing a hub's requests → 403; admin listing → 200 with the pending request.
+6. Rejecting with a too-short note → 400 with the exact spec-mandated message.
+7. Approving → 200, response includes the new `announcement_post` id; fetched that `Post` directly and confirmed `post_type="admin_announcement"` and the content matches the expected `"🎉 @username completed "Challenge"!\n\nAdmin note"` format.
+8. Re-reviewing the now-approved request → 400 ("already been reviewed").
+9. Member's notification feed shows the `completion_approved` entry with the correctly formatted message and `challenge_id`/`challenge_title` populated.
+10. Verified zero leftover test rows after cleanup.
+
+### 7.4 Android
+
+**Data layer:**
+- `data/model/CompletionRequest.kt` (new) — mirrors the serializer shape; `CompletionStatus` object for the 3 status string constants.
+- `data/model/NotificationItem.kt` — added `challengeId`/`challengeTitle` fields + a new `NotificationType` string-constant object (replacing the magic-string `"follow"`/`"like"`/`"comment"` checks that were previously inline in `NotificationsFragment`).
+- `HubApiService.kt` / `HubRepository.kt` — added `submitCompletionRequest`, `getMyCompletionRequest`, `getHubCompletionRequests`, `approveCompletionRequest`, `rejectCompletionRequest`.
+
+**Member-facing — Challenge Detail screen:**
+- New `section_completion` card in `fragment_challenge_detail.xml`, sitting between the info card and the model-specific progress section. Hidden unless the challenge is complete or a request already exists.
+- `ChallengeDetailViewModel` gained `myCompletionRequest` (loaded alongside the challenge and leaderboard in `load()`) and `submitCompletionRequest()`.
+- `ChallengeDetailFragment.updateCompletionSection()` renders 4 states: not-yet-complete (section hidden), complete-but-not-submitted ("🎉 Submit for Review" button), `pending` ("⏳ Pending review", no button), `approved` ("✅ Completion approved!" + admin's note if any), `rejected` (admin's note shown + "🎉 Resubmit for Review" button — submitting again is allowed since the unique constraint only blocks *pending*-or-*approved* duplicates, not rejected ones). Tapping submit opens a plain `AlertDialog` with an `EditText` for the optional note.
+
+**Admin-facing — new Completion Requests screen:**
+- `CompletionRequestsFragment` + `CompletionRequestsViewModel` + `CompletionRequestAdapter`, reachable from a new "Completion Requests" row in `HubSettingsFragment` (the admin-only area) showing a live pending-count badge (`circle_blue` drawable, reused from the Round 1 unread-notification dot).
+- Each row shows the member's avatar/username, the challenge title, their note (if any), and Approve/Reject buttons. Approve asks for a simple confirm dialog (no note — kept optional per the core-loop scope); Reject opens a dialog with a required `EditText`, client-side validated to ≥20 characters before submitting (mirroring the server-side check, so the user gets instant feedback instead of waiting for a 400).
+- Registered as `completionRequestsFragment` in `main_nav_graph.xml`.
+
+**Notification tap navigation:**
+- `NotificationsFragment.handleTap()` extended for the 3 new types — all three navigate to `ChallengeDetailFragment` via `challenge_id` (not to the admin review screen directly, since the notification payload doesn't carry a `hub_id` — a deliberate scope cut; the admin can reach the review screen from there via Hub Settings).
+
+**Verified:** `./gradlew :app:compileDebugKotlin` → BUILD SUCCESSFUL, no new warnings. `python manage.py check` → no issues.
+
+### 7.5 What's Explicitly Deferred (per the round-3 scoping decision)
+
+- The auto-generated review **timeline** (chronological feed of the member's posts + stage-completion events + "14-day gap here" markers + summary card) — admins currently just see the completion request itself (member note + which challenge), not their full activity history.
+- **"Request more proof"** soft-reject action — only hard Approve/Reject exist this round.
+- The **5-day/10-day reminder notification cron job** for un-reviewed requests.
+- Support action buttons on the announcement post (Mental Support / Physical Support / Gift) and the separate "Celebrate" confetti reaction — the announcement post is a plain text post for now, validatable/likeable/commentable like any other post but with no bespoke UI.
+- A "current rank" indicator and the Template System remain deferred from earlier rounds too.
+
+---
+
+## Part 8 — HubChallenge Spec Adoption: Round 4, Template System (2026-06-16)
+
+User-confirmed scope: **core only** — 15 official templates + a picker step in Create Challenge. Community template submissions (the 50+ members / 70%+ completion-rate eligibility check + moderation queue) were explicitly left out.
+
+**Adaptation note:** the spec's templates apply at the *hub* level (a hub IS the challenge in the original design). In our system a hub can hold many challenges, each with its own progress model, so templates were adapted to apply at *challenge* creation time instead — consistent with every other adaptation made in Rounds 1–3.
+
+### 8.1 Backend — Data Model
+
+- `ChallengeTemplate` (`community/models.py`): `name`, `category` (8 choices: fitness/finance/learning/reading/mindfulness/creative/career/other), `progress_model`, `description`, `is_official`, `created_by` (nullable — official templates have none), `use_count`, plus flattened default-config fields for count (`count_target`, `count_unit_label`, `count_entry_increment`) and streak (`streak_target_days`, `streak_frequency`, `streak_grace_days`). Stage-based templates instead get a separate `TemplateStage` model (mirrors `ChallengeStage` but decoupled from any live challenge) since a list of ordered stages doesn't fit as flat columns.
+- Two migrations: `0013_challengetemplate_templatestage.py` (schema, auto-generated, no prompts) and a **hand-written data migration** `0014_seed_official_templates.py` using `RunPython` + `apps.get_model()` (the correct Django pattern for data migrations — avoids importing the live model class, which could drift from the migration's expectations as the schema evolves later). The reverse migration deletes all `is_official=True` rows, making this fully reversible.
+- All 15 templates from the spec were seeded, with their model/category mapping preserved exactly: stage-based (Learn Python from Zero — 8 stages, Lose 10% Body Fat — 6 stages, Run a Half Marathon — 7 stages, Start a Business (MVP) — 6 stages, Learn a New Language (A2) — 5 stages, Read the Entire Quran — 30 stages generated as "Juz 1".."Juz 30"), count-based (Read 12 Books in a Year, Earn Your First $1,000, Write a Novel/NaNoWriMo, Publish 30 Social Media Posts, Save $500 Emergency Fund), streak-based (Meditate Every Day, Build a 30-Day Coding Habit, Digital Detox, Complete a 75-Day Hard).
+
+### 8.2 Backend — Views
+
+- `TemplateListView` — `GET /api/templates/`, filterable by `category`, `progress_model`, and free-text `search` (matches name or description). No pagination — 15 fixed rows, returned as a plain array, matching the pattern already used for `ChallengeLeaderboardView`/`PostValidationsListView`'s `validators` list.
+- `ChallengeListCreateView.create()` extended to accept an optional `template_id`. The key design rule, taken directly from the spec ("creates a fully editable copy... does NOT link them to the template"): **template values are defaults, not overrides** — if the request explicitly provides `title`/`description`/`stages`/`count_config`/`streak_config`, those win; only missing fields fall back to the template's values. `progress_model` is the one exception that the template *can* dictate when the client doesn't specify one. On successful creation with a template, `ChallengeTemplate.use_count` is atomically incremented (`F("use_count") + 1`) inside the same `transaction.atomic()` block as the rest of the creation.
+
+### 8.3 Backend Verification
+
+Full HTTP smoke test:
+1. `GET /api/templates/` → all 15.
+2. Filter by `category=fitness` → exactly the 3 fitness templates. Filter by `progress_model=stage` → exactly the 6 stage templates. Search `"python"` → exactly 1 match.
+3. Applied the "Learn Python from Zero" stage template with **no overrides** → new challenge got the template's title and all 8 stages, confirmed via `GET /api/challenges/<id>/`.
+4. Applied the same template again **with a custom title override** ("My Python Journey") → title override respected, stages still copied from the template (since stages weren't explicitly overridden).
+5. Applied a count template and a streak template, both with no overrides → correct `target_count`/`unit_label` and `target_days`/`grace_days` copied.
+6. Confirmed `use_count` incremented correctly across multiple applications (2 for the template applied twice, 1 each for the others).
+7. **Confirmed the "copy, don't link" rule**: the new challenge's stages are independent rows (editing/deleting them would never touch the template), and the original template's `stages.count()` was unchanged (still 8) after being applied twice.
+8. Verified zero leftover test data after cleanup, and the 15 official templates remained untouched at exactly 15.
+
+### 8.4 Android
+
+- `data/model/ChallengeTemplate.kt` (new) — `ChallengeTemplate`, `TemplateStage` (a different class from `ChallengeStageStatus`, no naming collision), and a `TemplateCategory` object with the 8 category constants + a `label()` helper for display strings.
+- `CreateChallengeRequest` — added `templateId: Int?`.
+- `HubApiService.kt`/`HubRepository.kt` — added `getTemplates(category, progressModel, search)`.
+- New `bottom_sheet_template_picker.xml` + `item_template_picker_row.xml` — same manual-row-inflation pattern as the existing hub/challenge pickers (not a RecyclerView, for consistency with this codebase's established style for small, bottom-sheet-hosted lists). Each row shows a model-specific emoji (🏆 stage / 📊 count / 🔥 streak), the template name, "`Category` · Used `N` times", and a description preview. A "✏️ Start from Scratch" row at the top clears any applied template.
+- `CreateChallengeFragment.kt`:
+  - New "📋 Start from a Template" row added above the title field in `bottom_sheet_create_challenge.xml`, showing the applied template's name once one is picked.
+  - `applyTemplate()` pre-fills the title, description, auto-selects the right model chip, and pre-fills that model's section: for stage templates it clears `containerStages` and re-adds one row per template stage (title + proof-type spinner pre-set); for count/streak it fills the existing target/unit/days/frequency/grace fields. The user can still edit anything afterward before submitting — the template only seeds the form, exactly matching the backend's "defaults, not overrides" behavior.
+  - `addStageRow()` gained optional `prefillTitle`/`prefillProofType` parameters to support this (previously only used for the empty "+ Add Stage" button).
+  - On submit, `selectedTemplateId` is included in the request whenever a template was applied (even if the user edited the pre-filled fields), so `use_count` still increments and the source template is recorded server-side for analytics, regardless of how much the user customized the form.
+
+**Verified:** `./gradlew :app:compileDebugKotlin` → BUILD SUCCESSFUL, no new warnings. `python manage.py check` → no issues.
+
+### 8.5 What's Explicitly Deferred (per the round-4 scoping decision)
+
+- **Community template submissions** — any hub admin meeting the spec's 50+ members / 70%+ completion-rate threshold submitting one of their own challenges as a public template (`is_official=false`, pending review) is not implemented. The `created_by` field on `ChallengeTemplate` exists and is nullable specifically to support this later without a schema change.
+- A moderation/review queue for community-submitted templates (would mirror the Round 3 admin-review pattern).
+- Template category filter chips in the Android picker UI — the backend supports `?category=` filtering, but the picker currently shows all 15 unfiltered; adding category chips would be a pure-UI follow-up with no backend changes needed.
+
+### 8.6 Spec Coverage Summary
+
+With this round, all four major pieces of `HubChallenge_Spec_v1.pdf` have a working implementation in HubRise, each adapted from hub-level to challenge-level to fit this app's "one hub, many challenges" model:
+
+| Spec Section | Status |
+|---|---|
+| Progress Bar System (3 models: Stage/Count/Streak) | ✅ Round 1 (Foundation) |
+| Layer 1 — Peer Micro-Validation | ✅ Round 2 |
+| "Progress only via posts" (this app's own requirement, not in the original spec) | ✅ Round 2.5 |
+| Layer 3 — Admin Final Review (core loop) | ✅ Round 3 |
+| Template System (official templates) | ✅ Round 4 (this round) |
+| Layer 3 — review timeline, reminders, "request more proof" | ⏸ deferred |
+| Template System — community submissions | ⏸ deferred |
+| Announcement post support buttons / Celebrate reaction | ⏸ deferred |
+
+---
+
+## Part 9 — Two User-Reported Fixes (2026-06-16)
+
+Two concerns raised after testing Round 3/Round 4: (1) the admin's Completion Requests screen could only ever show pending requests, with no way to review past decisions; (2) count-based challenges always treated a logged amount as additive, which doesn't fit goals where the member reports a cumulative number they already track elsewhere (e.g. "I've now run 40km total" should set the total to 40, not add 40 to whatever was logged before).
+
+### 9.1 Fix 1 — Admin can see reviewed history, not just pending
+
+**Backend:** `HubCompletionRequestsListView.get_queryset()` now reads a `?status=` query param (default `"pending"`, so the existing Hub Settings badge-count call is unaffected). Pass `?status=approved`, `?status=rejected`, or `?status=all` to see the rest.
+
+**Android:**
+- `HubApiService.getHubCompletionRequests()` / `HubRepository.getHubCompletionRequests()` gained a `status` parameter (default `"pending"`).
+- `CompletionRequestsFragment` now has a `TabLayout` with Pending / Approved / Rejected tabs, reloading the list via `viewModel.load(hubId, status)` on tab change.
+- `CompletionRequestAdapter` / `item_completion_request.xml` gained a second display mode: pending items still show the Approve/Reject buttons (`row_actions`); approved/rejected items instead show a read-only `row_outcome` — a colored status chip ("✅ Approved by @admin" / "❌ Rejected by @admin", new `success_chip_bg`/`error_chip_bg` drawables + a new `success_bg` color) plus the admin's note if one was given.
+
+**Verified via HTTP smoke test:** default view shows only pending; after approving, the default view is empty (the request left pending status) while `?status=approved` now shows it; `?status=all` shows everything; `?status=rejected` correctly stays empty when nothing's been rejected.
+
+### 9.2 Fix 2 — `is_cumulative` toggle for count-based challenges
+
+Given the genuine ambiguity in how "amount" should behave (matches the original spec's wording either way, depending on the goal type), the user chose to make it a per-challenge admin choice rather than a global behavior change.
+
+**Backend:**
+- `ChallengeCountConfig` gained `is_cumulative` (Boolean, default `False` — preserves existing behavior for every challenge created before this fix). Migration `0015_challengecountconfig_is_cumulative.py`, purely additive.
+- `ChallengeListCreateView.create()` reads `is_cumulative` from the client's `count_config` payload (defaults `False`).
+- `CreatePostView._create_count_post()` now branches: `is_cumulative=False` (default) → `progress.current_count += amount` (unchanged, original spec-matching behavior). `is_cumulative=True` → `progress.current_count = amount` (the logged value **becomes** the new total). The auto-generated post content also changes wording accordingly: "📈 Logged +X — Y/Z" (additive) vs "📈 Now at Y/Z" (cumulative).
+- `ChallengeDetailView` now includes `is_cumulative` in the `count_config` block of its response so the Android app can read it.
+
+**Verified via HTTP smoke test, both modes side by side:**
+- Additive challenge: log `3`, then log `40` → final total `43` (unchanged, confirms no regression).
+- Cumulative challenge: log `3` (total → 3), then log `40` (total → exactly `40`, matching the user's reported expectation, not `43`). Confirmed `is_complete` flips to `true` and the API response carries `is_cumulative: true`.
+
+**Android:**
+- `CountConfig` (response) and `CountConfigInput` (request) both gained `isCumulative: Boolean`.
+- `bottom_sheet_create_challenge.xml` — new switch in the count config section: "Entries report a running total", with explanatory subtext ("On: each entry IS the new total... Off: each entry adds up...").
+- `CreateChallengeFragment.kt` wires the switch into `CountConfigInput.isCumulative`.
+- `CreatePostFragment`/`CreatePostViewModel` — the picker's challenge list (`GET /api/hubs/<id>/challenges/`) doesn't include `count_config` (only the detail endpoint does), so selecting a count challenge now triggers a detail fetch (`loadCountConfig()`, mirroring the existing `loadCurrentStage()` pattern for stage challenges) purely to learn `is_cumulative`. The amount field's hint then reads either "Your new total so far (optional)" or "Amount to add (optional, defaults to the challenge's step size)".
+
+**Verified:** `./gradlew :app:compileDebugKotlin` → BUILD SUCCESSFUL, no new warnings. `python manage.py check` → no issues.
+
+---
+
+## Part 10 — Announcement Support Buttons: Mental / Physical / Gift (2026-06-16)
+
+User-reported bug + feature request: the "I believe this" (Layer 1 peer-validation) button was incorrectly showing on `admin_announcement` posts in the Android app, even though the backend's `PostValidateView` already rejected validation attempts on non-challenge-post-types. On announcement posts the spec calls for three different support actions instead: **Mental Support** (emoji + comment), **Physical Support** (free-text offer), and **Gift** (opens the completing member's wishlist link).
+
+### 10.1 Bug fix — validate button visibility
+
+`PostAdapter.applyValidateState()` previously gated visibility only on `post.challenge == null`, which is insufficient since announcement posts also carry a `challenge` reference. Fixed to additionally require `post.postType in PostType.CHALLENGE_TYPES` (stage_proof/count_entry/streak_checkin) — matching the backend's existing `Post.CHALLENGE_POST_TYPES` rule exactly.
+
+### 10.2 Gift button — new `wishlist_url` field
+
+**Backend:**
+- `UserProfile.wishlist_url` (`URLField`, blank-default) — migration `0007_userprofile_wishlist_url.py`, purely additive.
+- `UserPublicProfileView` GET/PATCH now read/write `wishlist_url`.
+- `PostSerializer` gained `author_wishlist_url` (read-only `SerializerMethodField`) so the Android app learns a post author's wishlist link directly from the post payload, without an extra profile fetch.
+
+**Verified via HTTP smoke test:** PATCH sets `wishlist_url` on a member's profile and it's readable via GET; an approved completion's announcement post correctly carries `author_wishlist_url`; the pre-existing rule rejecting `/validate/` on announcement posts (400, "Validation is only available for challenge-related posts") still holds — confirming the backend was already correct and only the Android UI had the bug.
+
+### 10.3 Mental / Physical Support — reuse existing Comment infrastructure
+
+Rather than building new backend models/endpoints, Mental and Physical support both reuse the existing `Comment` creation flow (`POST /api/posts/<id>/comments/`), which already notifies the post author (`Notification.TYPE_COMMENT`) and matches the spec's literal wording ("Mental Support (emoji + comment)"). Mental Support prefixes the comment with a ❤️ emoji (added automatically even if the optional note is left blank); Physical Support posts the free-text offer as-is (skipped if left blank). No new backend code was needed for this part.
+
+### 10.4 Android
+
+- `Post.kt` gained `authorWishlistUrl`. `UserPublicProfile.kt`/`UpdateProfileRequest.kt`/`UpdateProfileResponse.kt` all gained `wishlistUrl`. `UserRepository.updateProfile()` gained a `wishlistUrl` parameter.
+- `fragment_edit_profile.xml` — new "Wishlist link" text field; `EditProfileFragment`/`EditProfileViewModel`/`ProfileFragment` thread the value through (read from arguments, saved via PATCH).
+- `item_post.xml` — new `row_support` row (Mental/Physical/Gift, each an emoji + label in a `step_chip_bg`-styled tile), hidden by default and shown only when `post.postType == PostType.ANNOUNCEMENT`.
+- `PostAdapter` gained `onMentalSupportClick`/`onPhysicalSupportClick`/`onGiftClick` callbacks and an `applySupportRow()` bind method mirroring the existing `applyValidateState()` pattern.
+- New `utils/PostSupportHelper.kt` — a small per-fragment helper (takes a `Fragment` in its constructor) centralizing the three actions: `showMentalSupportDialog()`/`showPhysicalSupportDialog()` (AlertDialog + EditText, same pattern as `ChallengeDetailFragment`'s completion-request dialog) call `CommentRepository.createComment()`; `handleGiftClick()` opens `post.authorWishlistUrl` via `Intent.ACTION_VIEW`, or toasts "hasn't added a wishlist link yet" when blank. Wired into all four fragments that instantiate `PostAdapter` — `HomeFragment`, `HubDetailFragment`, `ProfileFragment`, `UserProfileFragment` — since announcement posts (authored by the completing member) can surface in the main feed, a hub feed, or a profile's post history alike.
+
+**Verified:** `./gradlew :app:compileDebugKotlin` → BUILD SUCCESSFUL, no new warnings. `python manage.py check` → no issues. Backend HTTP smoke test passed (§10.2).

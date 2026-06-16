@@ -19,6 +19,7 @@ data class Post(
     val author: Int = 0,
     @SerializedName("author_username") val authorUsername: String,
     @SerializedName("author_avatar_url") val authorAvatarUrl: String?,
+    @SerializedName("author_wishlist_url") val authorWishlistUrl: String? = null,
     val hub: Int? = null,
     @SerializedName("hub_name") val hubName: String?,
     @SerializedName("post_type") val postType: String = "regular",

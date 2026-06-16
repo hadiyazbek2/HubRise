@@ -13,6 +13,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.hubrise.R
 import com.example.hubrise.data.model.NotificationItem
+import com.example.hubrise.data.model.NotificationType
 import com.example.hubrise.ui.profile.UserProfileFragment
 
 class NotificationsFragment : Fragment() {
@@ -61,14 +62,22 @@ class NotificationsFragment : Fragment() {
 
     private fun handleTap(n: NotificationItem) {
         when (n.type) {
-            "follow" -> {
+            NotificationType.FOLLOW -> {
                 val bundle = Bundle().apply { putInt(UserProfileFragment.ARG_USER_ID, n.senderId) }
                 findNavController().navigate(R.id.userProfileFragment, bundle)
             }
-            "like", "comment" -> {
-                n.postId?.let { postId ->
+            NotificationType.LIKE, NotificationType.COMMENT -> {
+                n.postId?.let {
                     val bundle = Bundle().apply { putInt(UserProfileFragment.ARG_USER_ID, n.senderId) }
                     findNavController().navigate(R.id.userProfileFragment, bundle)
+                }
+            }
+            NotificationType.COMPLETION_SUBMITTED,
+            NotificationType.COMPLETION_APPROVED,
+            NotificationType.COMPLETION_REJECTED -> {
+                n.challengeId?.let { challengeId ->
+                    val bundle = Bundle().apply { putInt("challengeId", challengeId) }
+                    findNavController().navigate(R.id.challengeDetailFragment, bundle)
                 }
             }
         }

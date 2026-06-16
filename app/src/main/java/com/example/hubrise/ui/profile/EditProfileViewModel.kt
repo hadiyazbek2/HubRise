@@ -24,7 +24,13 @@ class EditProfileViewModel(app: Application) : AndroidViewModel(app) {
     private val prefs = UserPreferences(app)
     private val repository = UserRepository()
 
-    fun saveProfile(userId: Int, fullName: String, bio: String, imagePart: MultipartBody.Part? = null) {
+    fun saveProfile(
+        userId: Int,
+        fullName: String,
+        bio: String,
+        wishlistUrl: String = "",
+        imagePart: MultipartBody.Part? = null,
+    ) {
         viewModelScope.launch {
             _isSaving.value = true
             _error.value = null
@@ -42,7 +48,7 @@ class EditProfileViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
 
-            when (val r = repository.updateProfile(userId, fullName, bio)) {
+            when (val r = repository.updateProfile(userId, fullName, bio, wishlistUrl)) {
                 is UserRepository.Result.Success -> {
                     prefs.saveFullName(r.data.fullName)
                     _saved.value = true

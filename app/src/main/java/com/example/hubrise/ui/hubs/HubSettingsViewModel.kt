@@ -33,6 +33,18 @@ class HubSettingsViewModel(application: Application) : AndroidViewModel(applicat
     private val _error = MutableLiveData<String?>()
     val error: LiveData<String?> = _error
 
+    private val _pendingCompletionRequestsCount = MutableLiveData(0)
+    val pendingCompletionRequestsCount: LiveData<Int> = _pendingCompletionRequestsCount
+
+    fun loadPendingCompletionRequestsCount(hubId: Int) {
+        viewModelScope.launch {
+            when (val r = repository.getHubCompletionRequests(hubId)) {
+                is HubRepository.Result.Success -> _pendingCompletionRequestsCount.value = r.data.size
+                is HubRepository.Result.Error -> {}
+            }
+        }
+    }
+
     fun loadMembers(hubId: Int) {
         viewModelScope.launch {
             when (val r = repository.getHubMembers(hubId)) {

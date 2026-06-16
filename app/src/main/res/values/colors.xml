@@ -24,6 +24,7 @@
     <color name="error_red">#DC2626</color>
     <color name="error_bg">#FEE2E2</color>
     <color name="success_green">#16A34A</color>
+    <color name="success_bg">#DCFCE7</color>
     <color name="warn_orange">#EA580C</color>
     <color name="warn_yellow">#CA8A04</color>
 

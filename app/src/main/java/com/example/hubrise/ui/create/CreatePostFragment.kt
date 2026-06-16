@@ -22,6 +22,7 @@ import com.example.hubrise.data.model.ProgressModel
 import com.example.hubrise.utils.MediaPickerHelper
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 
 class CreatePostFragment : Fragment() {
 
@@ -35,7 +36,7 @@ class CreatePostFragment : Fragment() {
     private lateinit var rowChallengeSelector: LinearLayout
     private lateinit var tvSelectedChallenge: TextView
     private lateinit var dividerChallenge: View
-    private lateinit var rowAmount: View
+    private lateinit var rowAmount: TextInputLayout
     private lateinit var etAmount: TextInputEditText
     private lateinit var layoutNoHubs: LinearLayout
     private lateinit var etContent: TextInputEditText
@@ -259,6 +260,14 @@ class CreatePostFragment : Fragment() {
 
         viewModel.currentStage.observe(viewLifecycleOwner) {
             updatePostButtonState(etContent.text?.length ?: 0)
+        }
+
+        viewModel.selectedCountConfig.observe(viewLifecycleOwner) { config ->
+            rowAmount.hint = if (config?.isCumulative == true) {
+                "Your new total so far (optional)"
+            } else {
+                "Amount to add (optional, defaults to the challenge's step size)"
+            }
         }
 
         viewModel.selectedMediaUri.observe(viewLifecycleOwner) { uri ->

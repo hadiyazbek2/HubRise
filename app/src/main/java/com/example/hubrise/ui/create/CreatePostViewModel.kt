@@ -8,6 +8,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.example.hubrise.data.model.Challenge
 import com.example.hubrise.data.model.ChallengeStageStatus
+import com.example.hubrise.data.model.CountConfig
 import com.example.hubrise.data.model.CreatePostRequest
 import com.example.hubrise.data.model.Hub
 import com.example.hubrise.data.model.ProgressModel
@@ -36,6 +37,11 @@ class CreatePostViewModel(application: Application) : AndroidViewModel(applicati
     // Null while loading, or if every stage is already completed.
     private val _currentStage = MutableLiveData<ChallengeStageStatus?>(null)
     val currentStage: LiveData<ChallengeStageStatus?> = _currentStage
+
+    // For count-based challenges: fetched so the UI knows whether a typed amount
+    // should be hinted as "add this much" or "this is your new total".
+    private val _selectedCountConfig = MutableLiveData<CountConfig?>(null)
+    val selectedCountConfig: LiveData<CountConfig?> = _selectedCountConfig
 
     // Holds the selected media (URI for preview, File for upload)
     private val _selectedMediaUri = MutableLiveData<Uri?>(null)
@@ -111,14 +117,20 @@ class CreatePostViewModel(application: Application) : AndroidViewModel(applicati
     fun selectChallenge(challenge: Challenge) {
         _selectedChallenge.value = challenge
         _currentStage.value = null
-        if (challenge.progressModel == ProgressModel.STAGE) {
-            loadCurrentStage(challenge.id)
+        _selectedCountConfig.value = challenge.countConfig
+        when (challenge.progressModel) {
+            ProgressModel.STAGE -> loadCurrentStage(challenge.id)
+            // The picker's challenge list doesn't include count_config — only the
+            // detail endpoint does — so fetch it to know if entries are cumulative.
+            ProgressModel.COUNT -> if (challenge.countConfig == null) loadCountConfig(challenge.id)
+            else -> {}
         }
     }
 
     fun clearChallenge() {
         _selectedChallenge.value = null
         _currentStage.value = null
+        _selectedCountConfig.value = null
     }
 
     private fun loadCurrentStage(challengeId: Int) {
@@ -127,6 +139,15 @@ class CreatePostViewModel(application: Application) : AndroidViewModel(applicati
                 is HubRepository.Result.Success -> {
                     _currentStage.value = r.data.stages?.firstOrNull { it.status != StageStatus.COMPLETED }
                 }
+                is HubRepository.Result.Error -> {}
+            }
+        }
+    }
+
+    private fun loadCountConfig(challengeId: Int) {
+        viewModelScope.launch {
+            when (val r = repository.getChallenge(challengeId)) {
+                is HubRepository.Result.Success -> _selectedCountConfig.value = r.data.countConfig
                 is HubRepository.Result.Error -> {}
             }
         }

@@ -6,6 +6,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.example.hubrise.data.model.Challenge
+import com.example.hubrise.data.model.CompletionRequest
 import com.example.hubrise.data.model.LeaderboardEntry
 import com.example.hubrise.data.repository.HubRepository
 import kotlinx.coroutines.launch
@@ -20,8 +21,14 @@ class ChallengeDetailViewModel(application: Application) : AndroidViewModel(appl
     private val _leaderboard = MutableLiveData<List<LeaderboardEntry>>(emptyList())
     val leaderboard: LiveData<List<LeaderboardEntry>> = _leaderboard
 
+    private val _myCompletionRequest = MutableLiveData<CompletionRequest?>(null)
+    val myCompletionRequest: LiveData<CompletionRequest?> = _myCompletionRequest
+
     private val _isLoading = MutableLiveData(false)
     val isLoading: LiveData<Boolean> = _isLoading
+
+    private val _isSubmittingRequest = MutableLiveData(false)
+    val isSubmittingRequest: LiveData<Boolean> = _isSubmittingRequest
 
     private val _deleted = MutableLiveData(false)
     val deleted: LiveData<Boolean> = _deleted
@@ -39,6 +46,7 @@ class ChallengeDetailViewModel(application: Application) : AndroidViewModel(appl
             _isLoading.value = false
         }
         loadLeaderboard(challengeId)
+        loadMyCompletionRequest(challengeId)
     }
 
     fun loadLeaderboard(challengeId: Int) {
@@ -47,6 +55,26 @@ class ChallengeDetailViewModel(application: Application) : AndroidViewModel(appl
                 is HubRepository.Result.Success -> _leaderboard.value = r.data
                 is HubRepository.Result.Error -> {}
             }
+        }
+    }
+
+    fun loadMyCompletionRequest(challengeId: Int) {
+        viewModelScope.launch {
+            when (val r = repository.getMyCompletionRequest(challengeId)) {
+                is HubRepository.Result.Success -> _myCompletionRequest.value = r.data
+                is HubRepository.Result.Error -> {}
+            }
+        }
+    }
+
+    fun submitCompletionRequest(challengeId: Int, note: String) {
+        viewModelScope.launch {
+            _isSubmittingRequest.value = true
+            when (val r = repository.submitCompletionRequest(challengeId, note)) {
+                is HubRepository.Result.Success -> _myCompletionRequest.value = r.data
+                is HubRepository.Result.Error -> _error.value = r.message
+            }
+            _isSubmittingRequest.value = false
         }
     }
 

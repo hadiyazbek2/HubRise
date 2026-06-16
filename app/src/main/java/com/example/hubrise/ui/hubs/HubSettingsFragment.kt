@@ -35,6 +35,7 @@ class HubSettingsFragment : Fragment() {
     private lateinit var pbSaving: ProgressBar
     private lateinit var rvMembers: RecyclerView
     private lateinit var membersAdapter: HubMembersAdapter
+    private lateinit var tvCompletionRequestsCount: TextView
 
     private var hubId = 0
     private var selectedCoverUri: Uri? = null
@@ -65,6 +66,7 @@ class HubSettingsFragment : Fragment() {
         ivCoverPreview = view.findViewById(R.id.iv_cover_preview)
         pbSaving = view.findViewById(R.id.pb_saving)
         rvMembers = view.findViewById(R.id.rv_members)
+        tvCompletionRequestsCount = view.findViewById(R.id.tv_completion_requests_count)
 
         etName.setText(hubName)
         etDescription.setText(hubDescription)
@@ -83,6 +85,12 @@ class HubSettingsFragment : Fragment() {
         view.findViewById<View>(R.id.btn_save).setOnClickListener { save() }
 
         view.findViewById<View>(R.id.btn_delete_hub).setOnClickListener { confirmDelete() }
+
+        view.findViewById<View>(R.id.row_completion_requests).setOnClickListener {
+            val bundle = Bundle().apply { putInt("hubId", hubId) }
+            findNavController().navigate(R.id.completionRequestsFragment, bundle)
+        }
+        viewModel.loadPendingCompletionRequestsCount(hubId)
 
         membersAdapter = HubMembersAdapter(
             currentUserId = -1,
@@ -135,6 +143,11 @@ class HubSettingsFragment : Fragment() {
     private fun observeViewModel() {
         viewModel.members.observe(viewLifecycleOwner) { members ->
             membersAdapter.submitList(members)
+        }
+
+        viewModel.pendingCompletionRequestsCount.observe(viewLifecycleOwner) { count ->
+            tvCompletionRequestsCount.visibility = if (count > 0) View.VISIBLE else View.GONE
+            tvCompletionRequestsCount.text = count.toString()
         }
 
         viewModel.isSaving.observe(viewLifecycleOwner) { saving ->

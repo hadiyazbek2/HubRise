@@ -139,6 +139,7 @@ class UserPublicProfileView(APIView):
             "full_name": profile.full_name if profile else user.username,
             "bio": profile.bio if profile else "",
             "profile_picture_url": profile_picture_url(profile, request) if profile else None,
+            "wishlist_url": profile.wishlist_url if profile else "",
             "post_count": post_count,
             "hubs_count": hubs_count,
             "followers_count": followers_count,
@@ -156,15 +157,19 @@ class UserPublicProfileView(APIView):
         update_fields = []
         full_name = request.data.get("full_name")
         bio = request.data.get("bio")
+        wishlist_url = request.data.get("wishlist_url")
         if full_name is not None:
             profile.full_name = str(full_name)[:255]
             update_fields.append("full_name")
         if bio is not None:
             profile.bio = str(bio)[:200]
             update_fields.append("bio")
+        if wishlist_url is not None:
+            profile.wishlist_url = str(wishlist_url)[:500]
+            update_fields.append("wishlist_url")
         if update_fields:
             profile.save(update_fields=update_fields)
-        return Response({"full_name": profile.full_name, "bio": profile.bio})
+        return Response({"full_name": profile.full_name, "bio": profile.bio, "wishlist_url": profile.wishlist_url})
 
 
 class FollowToggleView(APIView):
@@ -236,7 +241,7 @@ class NotificationListView(APIView):
     def get(self, request):
         notifications = (
             Notification.objects.filter(recipient=request.user)
-            .select_related("sender", "sender__profile")
+            .select_related("sender", "sender__profile", "challenge")
             .prefetch_related()[:30]
         )
         data = []
@@ -248,12 +253,19 @@ class NotificationListView(APIView):
                     pic_url = request.build_absolute_uri(profile.profile_picture.url)
                 except Exception:
                     pass
+            challenge_title = n.challenge.title if n.challenge else None
             if n.notification_type == Notification.TYPE_FOLLOW:
                 message = f"@{n.sender.username} started following you"
             elif n.notification_type == Notification.TYPE_LIKE:
                 message = f"@{n.sender.username} liked your post"
-            else:
+            elif n.notification_type == Notification.TYPE_COMMENT:
                 message = f"@{n.sender.username} commented on your post"
+            elif n.notification_type == Notification.TYPE_COMPLETION_SUBMITTED:
+                message = f"@{n.sender.username} submitted a completion request for \"{challenge_title}\""
+            elif n.notification_type == Notification.TYPE_COMPLETION_APPROVED:
+                message = f"🎉 Your completion of \"{challenge_title}\" was approved!"
+            else:  # TYPE_COMPLETION_REJECTED
+                message = f"Your completion request for \"{challenge_title}\" needs more work — tap to see why"
             data.append({
                 "id": n.id,
                 "type": n.notification_type,
@@ -261,6 +273,8 @@ class NotificationListView(APIView):
                 "sender_username": n.sender.username,
                 "sender_avatar": pic_url,
                 "post_id": n.post_id,
+                "challenge_id": n.challenge_id,
+                "challenge_title": challenge_title,
                 "is_read": n.is_read,
                 "created_at": n.created_at.isoformat(),
                 "message": message,

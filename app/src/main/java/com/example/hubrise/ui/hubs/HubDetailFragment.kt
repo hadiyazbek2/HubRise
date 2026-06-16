@@ -22,6 +22,7 @@ import com.example.hubrise.data.model.Hub
 import com.example.hubrise.ui.comments.CommentsBottomSheetFragment
 import com.example.hubrise.ui.home.PostAdapter
 import com.example.hubrise.ui.profile.UserProfileFragment
+import com.example.hubrise.utils.PostSupportHelper
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.tabs.TabLayout
 import kotlinx.coroutines.flow.first
@@ -30,6 +31,7 @@ import kotlinx.coroutines.runBlocking
 class HubDetailFragment : Fragment() {
 
     private lateinit var viewModel: HubDetailViewModel
+    private lateinit var supportHelper: PostSupportHelper
 
     private lateinit var ivCover: ImageView
     private lateinit var btnBack: ImageView
@@ -84,6 +86,7 @@ class HubDetailFragment : Fragment() {
         btnMainChallengePlus = view.findViewById(R.id.btn_main_challenge_plus)
 
         val currentUserId = runBlocking { UserPreferences(requireContext()).userId.first() ?: -1 }
+        supportHelper = PostSupportHelper(this)
 
         postAdapter = PostAdapter(
             currentUserId = currentUserId,
@@ -97,7 +100,10 @@ class HubDetailFragment : Fragment() {
                 findNavController().navigate(R.id.userProfileFragment, bundle)
             },
             onHubClick = {},
-            onValidateClick = { post -> viewModel.toggleValidate(post) }
+            onValidateClick = { post -> viewModel.toggleValidate(post) },
+            onMentalSupportClick = { post -> supportHelper.showMentalSupportDialog(post) },
+            onPhysicalSupportClick = { post -> supportHelper.showPhysicalSupportDialog(post) },
+            onGiftClick = { post -> supportHelper.handleGiftClick(post) },
         )
         challengeAdapter = HubChallengeAdapter { challenge ->
             val bundle = Bundle().apply { putInt("challengeId", challenge.id) }

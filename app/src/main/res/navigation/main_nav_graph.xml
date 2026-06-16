@@ -69,4 +69,9 @@
         android:name="com.example.hubrise.ui.hubs.ChallengeDetailFragment"
         android:label="Challenge" />
 
+    <fragment
+        android:id="@+id/completionRequestsFragment"
+        android:name="com.example.hubrise.ui.hubs.CompletionRequestsFragment"
+        android:label="Completion Requests" />
+
 </navigation>

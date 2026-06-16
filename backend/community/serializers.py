@@ -3,11 +3,14 @@ from rest_framework import serializers
 
 from .models import (
     Challenge,
+    ChallengeTemplate,
     Comment,
+    CompletionRequest,
     Hub,
     HubMembership,
     Post,
     PostLike,
+    TemplateStage,
     UserCountProgress,
     UserStageProgress,
     UserStreakProgress,
@@ -202,6 +205,7 @@ class PostSerializer(serializers.ModelSerializer):
     challenge_title = serializers.SerializerMethodField()
     validations_count = serializers.IntegerField(source="validations.count", read_only=True)
     validated_by_me = serializers.SerializerMethodField()
+    author_wishlist_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Post
@@ -210,6 +214,7 @@ class PostSerializer(serializers.ModelSerializer):
             "author",
             "author_avatar_url",
             "author_username",
+            "author_wishlist_url",
             "hub",
             "hub_name",
             "post_type",
@@ -230,6 +235,7 @@ class PostSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "author", "created_at", "updated_at", "likes_count", "comments_count", "liked_by_me",
             "challenge", "challenge_title", "is_trusted", "validations_count", "validated_by_me",
+            "author_wishlist_url",
         ]
 
     def get_hub_name(self, obj: Post):
@@ -237,6 +243,10 @@ class PostSerializer(serializers.ModelSerializer):
 
     def get_challenge_title(self, obj: Post):
         return obj.challenge.title if obj.challenge else None
+
+    def get_author_wishlist_url(self, obj: Post) -> str:
+        profile = getattr(obj.author, "profile", None)
+        return profile.wishlist_url if profile else ""
 
     def get_validated_by_me(self, obj: Post) -> bool:
         request = self.context.get("request")
@@ -301,3 +311,74 @@ class CreatePostSerializer(serializers.ModelSerializer):
 class LikeToggleResponseSerializer(serializers.Serializer):
     liked = serializers.BooleanField()
     likes_count = serializers.IntegerField()
+
+
+class CompletionRequestSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source="user.username", read_only=True)
+    user_avatar_url = serializers.SerializerMethodField()
+    challenge_title = serializers.CharField(source="challenge.title", read_only=True)
+    hub_id = serializers.IntegerField(source="challenge.hub_id", read_only=True)
+    reviewed_by_username = serializers.CharField(source="reviewed_by.username", read_only=True, allow_null=True)
+
+    class Meta:
+        model = CompletionRequest
+        fields = [
+            "id",
+            "user",
+            "username",
+            "user_avatar_url",
+            "challenge",
+            "challenge_title",
+            "hub_id",
+            "status",
+            "member_note",
+            "submitted_at",
+            "reviewed_at",
+            "reviewed_by",
+            "reviewed_by_username",
+            "admin_note",
+            "announcement_post",
+        ]
+        read_only_fields = [
+            "user", "status", "submitted_at", "reviewed_at", "reviewed_by", "announcement_post",
+        ]
+
+    def get_user_avatar_url(self, obj: CompletionRequest):
+        request = self.context.get("request")
+        profile = getattr(obj.user, "profile", None)
+        if not profile or not getattr(profile, "profile_picture", None):
+            return ""
+        try:
+            url = profile.profile_picture.url
+            return request.build_absolute_uri(url) if request else url
+        except Exception:
+            return ""
+
+
+class TemplateStageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TemplateStage
+        fields = ["order_index", "title", "description", "proof_type"]
+
+
+class ChallengeTemplateSerializer(serializers.ModelSerializer):
+    stages = TemplateStageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ChallengeTemplate
+        fields = [
+            "id",
+            "name",
+            "category",
+            "progress_model",
+            "description",
+            "is_official",
+            "use_count",
+            "stages",
+            "count_target",
+            "count_unit_label",
+            "count_entry_increment",
+            "streak_target_days",
+            "streak_frequency",
+            "streak_grace_days",
+        ]

@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
@@ -17,6 +18,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.hubrise.R
 import com.example.hubrise.data.model.Challenge
+import com.example.hubrise.data.model.CompletionStatus
 import com.example.hubrise.data.model.ProgressModel
 import com.example.hubrise.ui.profile.UserProfileFragment
 
@@ -35,6 +37,12 @@ class ChallengeDetailFragment : Fragment() {
     private lateinit var tvLeaderboardEmpty: TextView
     private lateinit var btnDelete: Button
     private lateinit var pbLoading: ProgressBar
+
+    // Completion request section (Layer 3)
+    private lateinit var sectionCompletion: View
+    private lateinit var tvCompletionStatus: TextView
+    private lateinit var tvCompletionNote: TextView
+    private lateinit var btnSubmitCompletion: Button
 
     // Count section
     private lateinit var sectionCount: View
@@ -73,6 +81,11 @@ class ChallengeDetailFragment : Fragment() {
         tvLeaderboardEmpty = view.findViewById(R.id.tv_leaderboard_empty)
         btnDelete = view.findViewById(R.id.btn_delete_challenge)
         pbLoading = view.findViewById(R.id.pb_loading)
+
+        sectionCompletion = view.findViewById(R.id.section_completion)
+        tvCompletionStatus = view.findViewById(R.id.tv_completion_status)
+        tvCompletionNote = view.findViewById(R.id.tv_completion_note)
+        btnSubmitCompletion = view.findViewById(R.id.btn_submit_completion)
 
         sectionCount = view.findViewById(R.id.section_count)
         pbCountProgress = view.findViewById(R.id.pb_count_progress)
@@ -115,6 +128,7 @@ class ChallengeDetailFragment : Fragment() {
         btnLogCount.setOnClickListener { navigateToCreatePost() }
         btnCheckin.setOnClickListener { navigateToCreatePost() }
         btnDelete.setOnClickListener { confirmDelete() }
+        btnSubmitCompletion.setOnClickListener { showSubmitCompletionDialog() }
 
         observeViewModel()
     }
@@ -143,10 +157,31 @@ class ChallengeDetailFragment : Fragment() {
             .show()
     }
 
+    private fun showSubmitCompletionDialog() {
+        val editText = EditText(requireContext()).apply {
+            hint = "Anything you want the admin to know? (optional)"
+            setPadding(48, 32, 48, 32)
+        }
+        AlertDialog.Builder(requireContext())
+            .setTitle("Submit for Review")
+            .setMessage("Let the hub admin know you've completed this challenge. Approval posts an announcement in the hub feed.")
+            .setView(editText)
+            .setPositiveButton("Submit") { _, _ ->
+                viewModel.submitCompletionRequest(challengeId, editText.text?.toString().orEmpty())
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun observeViewModel() {
         viewModel.challenge.observe(viewLifecycleOwner) { challenge ->
             challenge ?: return@observe
             bindChallenge(challenge)
+            updateCompletionSection()
+        }
+
+        viewModel.myCompletionRequest.observe(viewLifecycleOwner) {
+            updateCompletionSection()
         }
 
         viewModel.leaderboard.observe(viewLifecycleOwner) { entries ->
@@ -238,4 +273,43 @@ class ChallengeDetailFragment : Fragment() {
 
     private fun formatNumber(value: Double): String =
         if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString()
+
+    private fun updateCompletionSection() {
+        val challenge = viewModel.challenge.value ?: return
+        val request = viewModel.myCompletionRequest.value
+        val isComplete = challenge.myProgress?.isComplete == true
+
+        if (!isComplete && request == null) {
+            sectionCompletion.visibility = View.GONE
+            return
+        }
+        sectionCompletion.visibility = View.VISIBLE
+
+        when (request?.status) {
+            CompletionStatus.PENDING -> {
+                tvCompletionStatus.text = "⏳ Pending review"
+                tvCompletionNote.visibility = View.GONE
+                btnSubmitCompletion.visibility = View.GONE
+            }
+            CompletionStatus.APPROVED -> {
+                tvCompletionStatus.text = "✅ Completion approved!"
+                tvCompletionNote.text = request.adminNote
+                tvCompletionNote.visibility = if (request.adminNote.isNotBlank()) View.VISIBLE else View.GONE
+                btnSubmitCompletion.visibility = View.GONE
+            }
+            CompletionStatus.REJECTED -> {
+                tvCompletionStatus.text = "Your completion request needs more work"
+                tvCompletionNote.text = request.adminNote
+                tvCompletionNote.visibility = View.VISIBLE
+                btnSubmitCompletion.visibility = View.VISIBLE
+                btnSubmitCompletion.text = "🎉 Resubmit for Review"
+            }
+            else -> {
+                tvCompletionStatus.text = "🎉 You completed this challenge!"
+                tvCompletionNote.visibility = View.GONE
+                btnSubmitCompletion.visibility = View.VISIBLE
+                btnSubmitCompletion.text = "🎉 Submit for Review"
+            }
+        }
+    }
 }

@@ -18,6 +18,7 @@ import com.example.hubrise.R
 import com.example.hubrise.data.local.UserPreferences
 import com.example.hubrise.ui.comments.CommentsBottomSheetFragment
 import com.example.hubrise.ui.profile.UserProfileFragment
+import com.example.hubrise.utils.PostSupportHelper
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
@@ -25,6 +26,7 @@ class HomeFragment : Fragment() {
 
     private lateinit var viewModel: HomeViewModel
     private lateinit var adapter: PostAdapter
+    private lateinit var supportHelper: PostSupportHelper
 
     private lateinit var rvPosts: RecyclerView
     private lateinit var swipeRefresh: SwipeRefreshLayout
@@ -58,6 +60,7 @@ class HomeFragment : Fragment() {
         }
 
         val currentUserId = runBlocking { UserPreferences(requireContext()).userId.first() ?: -1 }
+        supportHelper = PostSupportHelper(this)
 
         adapter = PostAdapter(
             currentUserId = currentUserId,
@@ -74,7 +77,10 @@ class HomeFragment : Fragment() {
                 val bundle = Bundle().apply { putInt("hubId", hubId) }
                 findNavController().navigate(R.id.hubDetailFragment, bundle)
             },
-            onValidateClick = { post -> viewModel.toggleValidate(post) }
+            onValidateClick = { post -> viewModel.toggleValidate(post) },
+            onMentalSupportClick = { post -> supportHelper.showMentalSupportDialog(post) },
+            onPhysicalSupportClick = { post -> supportHelper.showPhysicalSupportDialog(post) },
+            onGiftClick = { post -> supportHelper.handleGiftClick(post) },
         )
         rvPosts.layoutManager = LinearLayoutManager(requireContext())
         rvPosts.adapter = adapter

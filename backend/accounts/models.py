@@ -21,6 +21,9 @@ class UserProfile(models.Model):
     phone_number = models.CharField(max_length=30, blank=True)
     profile_picture = models.FileField(upload_to="profile_pictures/", blank=True)
     interests = models.ManyToManyField(Interest, blank=True, related_name="profiles")
+    # Optional wishlist link, surfaced via the "Gift" support button on a member's
+    # challenge-completion announcement post.
+    wishlist_url = models.URLField(max_length=500, blank=True, default="")
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self) -> str:
@@ -54,11 +57,17 @@ class Notification(models.Model):
     TYPE_FOLLOW = "follow"
     TYPE_LIKE = "like"
     TYPE_COMMENT = "comment"
+    TYPE_COMPLETION_SUBMITTED = "completion_submitted"
+    TYPE_COMPLETION_APPROVED = "completion_approved"
+    TYPE_COMPLETION_REJECTED = "completion_rejected"
 
     TYPES = [
         (TYPE_FOLLOW, "Follow"),
         (TYPE_LIKE, "Like"),
         (TYPE_COMMENT, "Comment"),
+        (TYPE_COMPLETION_SUBMITTED, "Completion Submitted"),
+        (TYPE_COMPLETION_APPROVED, "Completion Approved"),
+        (TYPE_COMPLETION_REJECTED, "Completion Rejected"),
     ]
 
     recipient = models.ForeignKey(
@@ -70,6 +79,9 @@ class Notification(models.Model):
     notification_type = models.CharField(max_length=20, choices=TYPES)
     post = models.ForeignKey(
         "community.Post", null=True, blank=True, on_delete=models.CASCADE
+    )
+    challenge = models.ForeignKey(
+        "community.Challenge", null=True, blank=True, on_delete=models.CASCADE
     )
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)

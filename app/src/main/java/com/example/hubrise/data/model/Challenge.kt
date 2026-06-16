@@ -52,6 +52,7 @@ data class CountConfig(
     @SerializedName("unit_label") val unitLabel: String = "",
     @SerializedName("entry_increment") val entryIncrement: Double = 1.0,
     @SerializedName("require_proof_per_entry") val requireProofPerEntry: Boolean = false,
+    @SerializedName("is_cumulative") val isCumulative: Boolean = false,
 )
 
 data class StreakConfig(
@@ -104,6 +105,7 @@ data class CountConfigInput(
     @SerializedName("unit_label") val unitLabel: String = "",
     @SerializedName("entry_increment") val entryIncrement: Double = 1.0,
     @SerializedName("require_proof_per_entry") val requireProofPerEntry: Boolean = false,
+    @SerializedName("is_cumulative") val isCumulative: Boolean = false,
 )
 
 data class StreakConfigInput(
@@ -119,6 +121,7 @@ data class CreateChallengeRequest(
     @SerializedName("progress_model") val progressModel: String,
     @SerializedName("is_main") val isMain: Boolean = false,
     @SerializedName("ends_at") val endsAt: String? = null,
+    @SerializedName("template_id") val templateId: Int? = null,
     val stages: List<StageInput>? = null,
     @SerializedName("count_config") val countConfig: CountConfigInput? = null,
     @SerializedName("streak_config") val streakConfig: StreakConfigInput? = null,
