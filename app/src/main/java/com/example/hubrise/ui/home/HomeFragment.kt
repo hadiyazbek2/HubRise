@@ -59,6 +59,10 @@ class HomeFragment : Fragment() {
             findNavController().navigate(R.id.notificationsFragment)
         }
 
+        view.findViewById<ImageView>(R.id.btn_messages).setOnClickListener {
+            Toast.makeText(requireContext(), "Direct messages — coming soon", Toast.LENGTH_SHORT).show()
+        }
+
         val currentUserId = runBlocking { UserPreferences(requireContext()).userId.first() ?: -1 }
         supportHelper = PostSupportHelper(this)
 

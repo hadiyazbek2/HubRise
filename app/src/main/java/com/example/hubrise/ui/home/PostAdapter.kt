@@ -19,6 +19,7 @@ import coil.transform.CircleCropTransformation
 import com.example.hubrise.R
 import com.example.hubrise.data.model.Post
 import com.example.hubrise.data.model.PostType
+import com.example.hubrise.utils.TimeUtils
 
 class PostAdapter(
     private val currentUserId: Int = -1,
@@ -53,7 +54,7 @@ class PostAdapter(
 
         fun bind(post: Post) {
             tvUsername.text = post.authorUsername
-            tvTimestamp.text = formatTimestamp(post.createdAt)
+            tvTimestamp.text = TimeUtils.formatRelativeTime(post.createdAt)
 
             // Hub chip — hidden for personal posts (hub=null)
             if (!post.hubName.isNullOrEmpty() && post.hub != null) {
@@ -156,21 +157,6 @@ class PostAdapter(
             tvLikesCount.text = count.toString()
         }
 
-        private fun formatTimestamp(isoDate: String): String {
-            return try {
-                val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.getDefault())
-                val date = sdf.parse(isoDate) ?: return isoDate
-                val diff = System.currentTimeMillis() - date.time
-                when {
-                    diff < 60_000 -> "just now"
-                    diff < 3_600_000 -> "${diff / 60_000}m"
-                    diff < 86_400_000 -> "${diff / 3_600_000}h"
-                    else -> "${diff / 86_400_000}d"
-                }
-            } catch (e: Exception) {
-                isoDate
-            }
-        }
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PostViewHolder {

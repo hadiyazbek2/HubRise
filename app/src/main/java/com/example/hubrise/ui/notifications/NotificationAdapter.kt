@@ -13,6 +13,7 @@ import coil.transform.CircleCropTransformation
 import com.example.hubrise.R
 import com.example.hubrise.data.api.RetrofitClient
 import com.example.hubrise.data.model.NotificationItem
+import com.example.hubrise.utils.TimeUtils
 
 class NotificationAdapter(
     private val onNotificationClick: (NotificationItem) -> Unit
@@ -26,7 +27,7 @@ class NotificationAdapter(
 
         fun bind(n: NotificationItem) {
             tvMessage.text = n.message
-            tvTime.text = formatTime(n.createdAt)
+            tvTime.text = TimeUtils.formatRelativeTime(n.createdAt)
             vUnread.visibility = if (!n.isRead) View.VISIBLE else View.INVISIBLE
 
             ivAvatar.load(RetrofitClient.absoluteUrl(n.senderAvatar)) {
@@ -37,20 +38,6 @@ class NotificationAdapter(
             }
 
             itemView.setOnClickListener { onNotificationClick(n) }
-        }
-
-        private fun formatTime(iso: String): String {
-            return try {
-                val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.getDefault())
-                val date = sdf.parse(iso.substringBefore("+").substringBefore("Z")) ?: return iso
-                val diff = System.currentTimeMillis() - date.time
-                when {
-                    diff < 60_000 -> "just now"
-                    diff < 3_600_000 -> "${diff / 60_000}m"
-                    diff < 86_400_000 -> "${diff / 3_600_000}h"
-                    else -> "${diff / 86_400_000}d"
-                }
-            } catch (e: Exception) { "" }
         }
     }
 

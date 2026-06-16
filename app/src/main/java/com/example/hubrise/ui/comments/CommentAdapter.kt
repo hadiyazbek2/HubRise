@@ -12,6 +12,7 @@ import coil.load
 import coil.transform.CircleCropTransformation
 import com.example.hubrise.R
 import com.example.hubrise.data.model.Comment
+import com.example.hubrise.utils.TimeUtils
 
 class CommentAdapter(
     private val currentUserId: Int,
@@ -33,7 +34,7 @@ class CommentAdapter(
         val comment = getItem(position)
         holder.tvUsername.text = comment.authorUsername
         holder.tvContent.text = comment.content
-        holder.tvTime.text = formatTime(comment.createdAt)
+        holder.tvTime.text = TimeUtils.formatRelativeTime(comment.createdAt)
         holder.btnDelete.visibility = if (comment.author == currentUserId) View.VISIBLE else View.GONE
         holder.btnDelete.setOnClickListener { onDelete(comment) }
 
@@ -47,19 +48,6 @@ class CommentAdapter(
             holder.ivAvatar.setImageResource(R.drawable.ic_default_avatar)
         }
     }
-
-    private fun formatTime(iso: String): String = try {
-        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.getDefault())
-        sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
-        val date = sdf.parse(iso.substringBefore(".")) ?: return iso
-        val diff = (System.currentTimeMillis() - date.time) / 1000
-        when {
-            diff < 60 -> "just now"
-            diff < 3600 -> "${diff / 60}m"
-            diff < 86400 -> "${diff / 3600}h"
-            else -> "${diff / 86400}d"
-        }
-    } catch (e: Exception) { "" }
 
     companion object {
         private val DIFF = object : DiffUtil.ItemCallback<Comment>() {
