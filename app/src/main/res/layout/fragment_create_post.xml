@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bg_screen">
+
+    <!-- Top bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="8dp"
+        android:background="@color/bg_card"
+        android:elevation="2dp">
+
+        <ImageView
+            android:id="@+id/btn_back"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_back_arrow"
+            android:padding="8dp"
+            android:contentDescription="Back"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="New Post"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:layout_marginStart="4dp" />
+
+        <Button
+            android:id="@+id/btn_post"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="Post"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:background="@drawable/btn_primary"
+            android:textColor="@color/white"
+            android:paddingHorizontal="20dp"
+            android:stateListAnimator="@null"
+            android:enabled="false"
+            android:alpha="0.5" />
+
+    </LinearLayout>
+
+    <!-- Hub selector row -->
+    <LinearLayout
+        android:id="@+id/row_hub_selector"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="16dp"
+        android:background="@color/bg_card"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?attr/selectableItemBackground">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Posting to:"
+            android:textSize="14sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginEnd="8dp" />
+
+        <TextView
+            android:id="@+id/tv_selected_hub"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Select a hub"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="@color/blue_primary" />
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@android:drawable/arrow_down_float"
+            android:contentDescription="Select hub" />
+
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/divider" />
+
+    <!-- No hubs joined banner -->
+    <LinearLayout
+        android:id="@+id/layout_no_hubs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="32dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Join a hub first"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="You need to be a member of a hub before you can post"
+            android:textSize="13sp"
+            android:textColor="@color/text_secondary"
+            android:gravity="center"
+            android:layout_marginBottom="16dp" />
+
+        <Button
+            android:id="@+id/btn_go_hubs"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:text="Browse Hubs"
+            android:textColor="@color/white"
+            android:background="@drawable/btn_primary"
+            android:paddingHorizontal="24dp"
+            android:stateListAnimator="@null" />
+
+    </LinearLayout>
+
+    <!-- Content text field -->
+    <com.google.android.material.textfield.TextInputEditText
+        android:id="@+id/et_content"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:hint="What's on your mind?"
+        android:textColorHint="@color/text_secondary"
+        android:inputType="textMultiLine|textCapSentences"
+        android:gravity="top"
+        android:padding="16dp"
+        android:background="@color/bg_card"
+        android:textSize="15sp"
+        android:textColor="@color/text_primary"
+        android:maxLength="500" />
+
+    <!-- Media preview (shown when user picks a file) -->
+    <LinearLayout
+        android:id="@+id/layout_media_preview"
+        android:layout_width="match_parent"
+        android:layout_height="180dp"
+        android:orientation="vertical"
+        android:visibility="gone"
+        android:background="@color/bg_card">
+
+        <ImageView
+            android:id="@+id/iv_media_preview"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:scaleType="centerCrop"
+            android:contentDescription="Media preview" />
+
+        <ImageView
+            android:id="@+id/btn_remove_media"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="end"
+            android:layout_margin="8dp"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:contentDescription="Remove media"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginTop="-36dp" />
+
+    </LinearLayout>
+
+    <!-- Bottom bar: media add + char count + posting indicator -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="16dp"
+        android:background="@color/bg_card">
+
+        <ImageView
+            android:id="@+id/btn_add_media"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:src="@android:drawable/ic_menu_camera"
+            android:contentDescription="Add photo or video"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginEnd="12dp" />
+
+        <TextView
+            android:id="@+id/tv_char_count"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="0 / 500"
+            android:textSize="12sp"
+            android:textColor="@color/text_secondary" />
+
+        <ProgressBar
+            android:id="@+id/pb_posting"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/tv_error"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:textColor="@color/error_red"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+</LinearLayout>

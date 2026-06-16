@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Development security config — allows HTTP to local addresses.
+    For real device: also update RetrofitClient.kt DEVICE_URL to your computer's LAN IP.
+    To find your LAN IP:  Linux/Mac: run `ip addr` or `ifconfig`  |  Windows: run `ipconfig`
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

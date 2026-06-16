@@ -1,0 +1,64 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Base.Theme.HubRise" parent="Theme.Material3.Light.NoActionBar">
+
+        <!-- Primary -->
+        <item name="colorPrimary">#1A73E8</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorPrimaryContainer">#DBEAFE</item>
+        <item name="colorOnPrimaryContainer">#1E3A8A</item>
+
+        <!-- Secondary — blue instead of M3 default pink/rose -->
+        <item name="colorSecondary">#3B82F6</item>
+        <item name="colorOnSecondary">#FFFFFF</item>
+        <item name="colorSecondaryContainer">#EFF6FF</item>
+        <item name="colorOnSecondaryContainer">#1E40AF</item>
+
+        <!-- Tertiary — sky blue instead of M3 default purple -->
+        <item name="colorTertiary">#0EA5E9</item>
+        <item name="colorOnTertiary">#FFFFFF</item>
+        <item name="colorTertiaryContainer">#E0F2FE</item>
+        <item name="colorOnTertiaryContainer">#0C4A6E</item>
+
+        <!-- Surface / background -->
+        <item name="colorSurface">#FFFFFF</item>
+        <item name="colorOnSurface">#0F172A</item>
+        <item name="colorSurfaceVariant">#EFF6FF</item>
+        <item name="colorOnSurfaceVariant">#4B6080</item>
+        <item name="colorSurfaceContainer">#EBF5FF</item>
+        <item name="colorSurfaceContainerHigh">#DBEAFE</item>
+
+        <!-- Outline -->
+        <item name="colorOutline">#5B8FC7</item>
+        <item name="colorOutlineVariant">#93B4D4</item>
+
+        <!-- Window -->
+        <item name="android:windowBackground">@color/bg_screen</item>
+        <item name="android:statusBarColor">@color/bg_screen</item>
+        <item name="android:navigationBarColor">@color/bg_card</item>
+        <item name="android:windowLightStatusBar">true</item>
+
+        <!-- Text input style -->
+        <item name="textInputStyle">@style/HubRiseTextInput</item>
+    </style>
+
+    <style name="Theme.HubRise" parent="Base.Theme.HubRise" />
+
+    <!-- Modern rounded outlined text field -->
+    <style name="HubRiseTextInput" parent="Widget.Material3.TextInputLayout.OutlinedBox">
+        <item name="boxCornerRadiusTopStart">12dp</item>
+        <item name="boxCornerRadiusTopEnd">12dp</item>
+        <item name="boxCornerRadiusBottomStart">12dp</item>
+        <item name="boxCornerRadiusBottomEnd">12dp</item>
+        <item name="boxStrokeColor">@color/blue_primary</item>
+        <item name="boxStrokeWidth">1.5dp</item>
+        <item name="boxStrokeWidthFocused">2dp</item>
+        <item name="boxBackgroundColor">@color/bg_card</item>
+        <item name="hintTextColor">@color/text_secondary</item>
+        <item name="android:textColorHint">@color/text_secondary</item>
+    </style>
+
+    <!-- Strength bar rounded background -->
+    <style name="StrengthBar">
+        <item name="android:background">@drawable/strength_bar_bg</item>
+    </style>
+</resources>

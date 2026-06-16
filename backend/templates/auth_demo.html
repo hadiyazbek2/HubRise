@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Auth Contract Demo</title>
+  <style>
+    body { font-family: "Segoe UI", sans-serif; margin: 24px; background: #f4f6f8; color: #1c2833; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+    .card { background: white; border: 1px solid #d7dde3; border-radius: 10px; padding: 14px; }
+    label { display: block; margin: 8px 0 4px; font-size: 0.9rem; }
+    input, select, button { width: 100%; padding: 9px; border: 1px solid #c8d0d7; border-radius: 7px; }
+    button { margin-top: 10px; background: #0f766e; color: white; border: none; font-weight: 600; }
+    pre { background: #111827; color: #e5e7eb; padding: 12px; border-radius: 8px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h2>Auth API Demo (Frontend Contract)</h2>
+  <div class="grid">
+    <section class="card">
+      <h3>Signup</h3>
+      <label>Email</label><input id="s-email" />
+      <label>Password</label><input id="s-password" type="password" />
+      <label>Full Name</label><input id="s-full-name" />
+      <label>Username</label><input id="s-username" />
+      <label>Date of Birth (YYYY-MM-DD)</label><input id="s-dob" value="2000-01-01" />
+      <label>Phone Number</label><input id="s-phone" />
+      <label>Interests (comma-separated IDs)</label><input id="s-interests" placeholder="1,2" />
+      <button id="signup-btn">Signup</button>
+    </section>
+
+    <section class="card">
+      <h3>Login</h3>
+      <label>Email</label><input id="l-email" />
+      <label>Password</label><input id="l-password" type="password" />
+      <button id="login-btn">Login</button>
+      <button id="refresh-btn">Refresh Access Token</button>
+    </section>
+
+    <section class="card">
+      <h3>Social Login</h3>
+      <label>Provider</label>
+      <select id="social-provider">
+        <option value="google">google</option>
+        <option value="facebook">facebook</option>
+        <option value="apple">apple</option>
+      </select>
+      <label>ID Token</label><input id="social-id-token" placeholder="any token in prototype mode" />
+      <button id="social-btn">Social Login</button>
+    </section>
+
+    <section class="card">
+      <h3>Availability</h3>
+      <label>Email</label><input id="c-email" />
+      <button id="check-email-btn">Check Email</button>
+      <label>Username</label><input id="c-username" />
+      <button id="check-username-btn">Check Username</button>
+    </section>
+
+    <section class="card">
+      <h3>Profile Picture Upload</h3>
+      <label>User ID</label><input id="u-user-id" />
+      <label>Image File</label><input id="u-file" type="file" />
+      <button id="upload-btn">Upload</button>
+    </section>
+  </div>
+
+  <h3>Response</h3>
+  <pre id="out">Ready.</pre>
+
+  <script>
+    const out = document.getElementById("out");
+    const authBase = "/api/auth";
+    const tokenKey = "accessToken";
+    const refreshKey = "refreshToken";
+
+    function print(data) {
+      out.textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function callJson(url, method, body, auth = false) {
+      const headers = { "Content-Type": "application/json" };
+      if (auth) headers.Authorization = `Bearer ${localStorage.getItem(tokenKey)}`;
+      const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw data;
+      return data;
+    }
+
+    function storeTokens(data) {
+      if (data.access_token) localStorage.setItem(tokenKey, data.access_token);
+      if (data.refresh_token) localStorage.setItem(refreshKey, data.refresh_token);
+    }
+
+    document.getElementById("signup-btn").onclick = async () => {
+      try {
+        const interests = document.getElementById("s-interests").value
+          .split(",")
+          .map(v => v.trim())
+          .filter(Boolean)
+          .map(Number);
+        const data = await callJson(`${authBase}/signup/`, "POST", {
+          email: document.getElementById("s-email").value,
+          password: document.getElementById("s-password").value,
+          full_name: document.getElementById("s-full-name").value,
+          username: document.getElementById("s-username").value,
+          date_of_birth: document.getElementById("s-dob").value,
+          phone_number: document.getElementById("s-phone").value,
+          interests
+        });
+        storeTokens(data);
+        print(data);
+      } catch (e) { print(e); }
+    };
+
+    document.getElementById("login-btn").onclick = async () => {
+      try {
+        const data = await callJson(`${authBase}/login/`, "POST", {
+          email: document.getElementById("l-email").value,
+          password: document.getElementById("l-password").value
+        });
+        storeTokens(data);
+        print(data);
+      } catch (e) { print(e); }
+    };
+
+    document.getElementById("refresh-btn").onclick = async () => {
+      try {
+        const data = await callJson(`${authBase}/token/refresh/`, "POST", {
+          refresh: localStorage.getItem(refreshKey)
+        });
+        if (data.access) localStorage.setItem(tokenKey, data.access);
+        print(data);
+      } catch (e) { print(e); }
+    };
+
+    document.getElementById("social-btn").onclick = async () => {
+      try {
+        const data = await callJson(`${authBase}/social-login/`, "POST", {
+          provider: document.getElementById("social-provider").value,
+          id_token: document.getElementById("social-id-token").value
+        });
+        storeTokens(data);
+        print(data);
+      } catch (e) { print(e); }
+    };
+
+    document.getElementById("check-email-btn").onclick = async () => {
+      try {
+        const email = encodeURIComponent(document.getElementById("c-email").value);
+        const res = await fetch(`${authBase}/check-email/?email=${email}`);
+        const data = await res.json();
+        print(data);
+      } catch (e) { print(e); }
+    };
+
+    document.getElementById("check-username-btn").onclick = async () => {
+      try {
+        const username = encodeURIComponent(document.getElementById("c-username").value);
+        const res = await fetch(`${authBase}/check-username/?username=${username}`);
+        const data = await res.json();
+        print(data);
+      } catch (e) { print(e); }
+    };
+
+    document.getElementById("upload-btn").onclick = async () => {
+      try {
+        const userId = document.getElementById("u-user-id").value;
+        const file = document.getElementById("u-file").files[0];
+        const formData = new FormData();
+        formData.append("image_file", file);
+        const res = await fetch(`/api/users/${userId}/profile-picture/`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${localStorage.getItem(tokenKey)}` },
+          body: formData
+        });
+        const data = await res.json();
+        if (!res.ok) throw data;
+        print(data);
+      } catch (e) { print(e); }
+    };
+  </script>
+</body>
+</html>

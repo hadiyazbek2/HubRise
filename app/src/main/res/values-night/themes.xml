@@ -1,0 +1,27 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Base.Theme.HubRise" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Keep blue everywhere even in dark mode -->
+        <item name="colorPrimary">#60A5FA</item>
+        <item name="colorOnPrimary">#0F172A</item>
+        <item name="colorPrimaryContainer">#1E40AF</item>
+        <item name="colorOnPrimaryContainer">#DBEAFE</item>
+
+        <item name="colorSecondary">#93C5FD</item>
+        <item name="colorOnSecondary">#1E3A8A</item>
+        <item name="colorSecondaryContainer">#1D4ED8</item>
+        <item name="colorOnSecondaryContainer">#EFF6FF</item>
+
+        <item name="colorTertiary">#38BDF8</item>
+        <item name="colorOnTertiary">#0C4A6E</item>
+        <item name="colorTertiaryContainer">#0369A1</item>
+        <item name="colorOnTertiaryContainer">#E0F2FE</item>
+
+        <item name="colorSurface">#0F172A</item>
+        <item name="colorOnSurface">#E2E8F0</item>
+        <item name="colorSurfaceVariant">#1E293B</item>
+        <item name="colorOnSurfaceVariant">#94A3B8</item>
+
+        <item name="colorOutline">#334155</item>
+        <item name="colorOutlineVariant">#1E293B</item>
+    </style>
+</resources>

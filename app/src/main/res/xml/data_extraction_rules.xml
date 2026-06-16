@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <!-- Exclude DataStore (tokens) so auth state is never restored from cloud backup -->
+        <exclude domain="file" path="datastore" />
+    </cloud-backup>
+    <device-transfer>
+        <!-- Exclude DataStore from device-to-device transfers as well -->
+        <exclude domain="file" path="datastore" />
+    </device-transfer>
+</data-extraction-rules>

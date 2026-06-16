@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/main_nav_graph"
+    app:startDestination="@id/homeFragment">
+
+    <fragment
+        android:id="@+id/homeFragment"
+        android:name="com.example.hubrise.ui.home.HomeFragment"
+        android:label="Home" />
+
+    <fragment
+        android:id="@+id/exploreFragment"
+        android:name="com.example.hubrise.ui.explore.ExploreFragment"
+        android:label="Explore" />
+
+    <fragment
+        android:id="@+id/createPostFragment"
+        android:name="com.example.hubrise.ui.create.CreatePostFragment"
+        android:label="Create" />
+
+    <fragment
+        android:id="@+id/hubsFragment"
+        android:name="com.example.hubrise.ui.hubs.HubsFragment"
+        android:label="Hubs" />
+
+    <fragment
+        android:id="@+id/profileFragment"
+        android:name="com.example.hubrise.ui.profile.ProfileFragment"
+        android:label="Profile" />
+
+    <fragment
+        android:id="@+id/hubDetailFragment"
+        android:name="com.example.hubrise.ui.hubs.HubDetailFragment"
+        android:label="Hub Detail" />
+
+    <fragment
+        android:id="@+id/createHubFragment"
+        android:name="com.example.hubrise.ui.hubs.CreateHubFragment"
+        android:label="Create Hub" />
+
+    <fragment
+        android:id="@+id/userProfileFragment"
+        android:name="com.example.hubrise.ui.profile.UserProfileFragment"
+        android:label="Profile" />
+
+    <fragment
+        android:id="@+id/editProfileFragment"
+        android:name="com.example.hubrise.ui.profile.EditProfileFragment"
+        android:label="Edit Profile" />
+
+    <fragment
+        android:id="@+id/searchFragment"
+        android:name="com.example.hubrise.ui.search.SearchFragment"
+        android:label="Search" />
+
+    <fragment
+        android:id="@+id/notificationsFragment"
+        android:name="com.example.hubrise.ui.notifications.NotificationsFragment"
+        android:label="Notifications" />
+
+    <fragment
+        android:id="@+id/hubSettingsFragment"
+        android:name="com.example.hubrise.ui.hubs.HubSettingsFragment"
+        android:label="Hub Settings" />
+
+    <fragment
+        android:id="@+id/challengeDetailFragment"
+        android:name="com.example.hubrise.ui.hubs.ChallengeDetailFragment"
+        android:label="Challenge" />
+
+</navigation>
