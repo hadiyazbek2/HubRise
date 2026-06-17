@@ -8,6 +8,7 @@ import com.example.hubrise.data.model.CreateChallengeRequest
 import com.example.hubrise.data.model.CreateHubRequest
 import com.example.hubrise.data.model.CreatePostRequest
 import com.example.hubrise.data.model.Hub
+import com.example.hubrise.data.model.HubCategory
 import com.example.hubrise.data.model.HubMember
 import com.example.hubrise.data.model.JoinLeaveResponse
 import com.example.hubrise.data.model.LeaderboardEntry
@@ -201,6 +202,12 @@ class HubRepository {
         val requestFile = file.asRequestBody("image/*".toMediaTypeOrNull())
         val part = MultipartBody.Part.createFormData("cover_image", file.name, requestFile)
         val r = api.uploadHubCover(hubId, part)
+        if (r.isSuccessful && r.body() != null) Result.Success(r.body()!!)
+        else Result.Error("${r.code()}: ${r.errorBody()?.string()}")
+    } catch (e: Exception) { Result.Error(e.message ?: "Network error") }
+
+    suspend fun getCategories(): Result<List<HubCategory>> = try {
+        val r = api.getCategories()
         if (r.isSuccessful && r.body() != null) Result.Success(r.body()!!)
         else Result.Error("${r.code()}: ${r.errorBody()?.string()}")
     } catch (e: Exception) { Result.Error(e.message ?: "Network error") }

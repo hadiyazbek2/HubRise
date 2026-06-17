@@ -14,6 +14,7 @@ import android.widget.ProgressBar
 import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
@@ -40,6 +41,8 @@ class CreateHubFragment : Fragment() {
     private lateinit var layoutCoverPicker: FrameLayout
     private lateinit var ivCoverPreview: ImageView
     private lateinit var layoutCoverPlaceholder: LinearLayout
+    private lateinit var layoutCategoryPicker: LinearLayout
+    private lateinit var tvCategoryValue: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,10 +72,12 @@ class CreateHubFragment : Fragment() {
         layoutCoverPicker = view.findViewById(R.id.layout_cover_picker)
         ivCoverPreview = view.findViewById(R.id.iv_cover_preview)
         layoutCoverPlaceholder = view.findViewById(R.id.layout_cover_placeholder)
+        layoutCategoryPicker = view.findViewById(R.id.layout_category_picker)
+        tvCategoryValue = view.findViewById(R.id.tv_category_value)
 
         btnBack.setOnClickListener { findNavController().popBackStack() }
-
         layoutCoverPicker.setOnClickListener { mediaPicker.pickFromGallery() }
+        layoutCategoryPicker.setOnClickListener { showCategoryPicker() }
 
         etName.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -103,6 +108,22 @@ class CreateHubFragment : Fragment() {
         observeViewModel()
     }
 
+    private fun showCategoryPicker() {
+        val categories = viewModel.categories.value ?: emptyList()
+        if (categories.isEmpty()) return
+        val names = categories.map { it.name }.toTypedArray()
+        val currentIndex = viewModel.selectedCategory.value
+            ?.let { sel -> categories.indexOfFirst { it.id == sel.id } } ?: -1
+        AlertDialog.Builder(requireContext())
+            .setTitle("Select a category")
+            .setSingleChoiceItems(names, currentIndex) { dialog, which ->
+                viewModel.selectCategory(categories[which])
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun observeViewModel() {
         viewModel.coverUri.observe(viewLifecycleOwner) { uri ->
             if (uri != null) {
@@ -112,6 +133,16 @@ class CreateHubFragment : Fragment() {
             } else {
                 ivCoverPreview.visibility = View.GONE
                 layoutCoverPlaceholder.visibility = View.VISIBLE
+            }
+        }
+
+        viewModel.selectedCategory.observe(viewLifecycleOwner) { category ->
+            if (category != null) {
+                tvCategoryValue.text = category.name
+                tvCategoryValue.setTextColor(resources.getColor(R.color.text_primary, null))
+            } else {
+                tvCategoryValue.text = "Select a category"
+                tvCategoryValue.setTextColor(resources.getColor(R.color.text_secondary, null))
             }
         }
 

@@ -7,6 +7,7 @@ import com.example.hubrise.data.model.CreateChallengeRequest
 import com.example.hubrise.data.model.CreateHubRequest
 import com.example.hubrise.data.model.CreatePostRequest
 import com.example.hubrise.data.model.Hub
+import com.example.hubrise.data.model.HubCategory
 import com.example.hubrise.data.model.HubMember
 import com.example.hubrise.data.model.JoinLeaveResponse
 import com.example.hubrise.data.model.LeaderboardEntry
@@ -124,4 +125,7 @@ interface HubApiService {
         @Path("id") hubId: Int,
         @Part cover: MultipartBody.Part,
     ): Response<Hub>
+
+    @GET("api/auth/interests/")
+    suspend fun getCategories(): Response<List<HubCategory>>
 }

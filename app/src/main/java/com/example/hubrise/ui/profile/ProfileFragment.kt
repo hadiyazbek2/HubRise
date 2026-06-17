@@ -81,7 +81,7 @@ class ProfileFragment : Fragment() {
                         true
                     }
                     R.id.action_notifications -> {
-                        Toast.makeText(requireContext(), "Notifications — coming soon", Toast.LENGTH_SHORT).show()
+                        findNavController().navigate(R.id.notificationsFragment)
                         true
                     }
                     R.id.action_privacy -> {

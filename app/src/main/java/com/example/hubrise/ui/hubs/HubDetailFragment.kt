@@ -53,6 +53,14 @@ class HubDetailFragment : Fragment() {
     private lateinit var tvMainChallengeProgress: TextView
     private lateinit var btnMainChallengePlus: TextView
 
+    // About tab views
+    private lateinit var layoutAbout: View
+    private lateinit var tvAboutDescription: TextView
+    private lateinit var tvAboutCategory: TextView
+    private lateinit var tvAboutMembers: TextView
+    private lateinit var tvAboutVisibility: TextView
+    private lateinit var tvAboutCreatedBy: TextView
+
     private lateinit var postAdapter: PostAdapter
     private lateinit var challengeAdapter: HubChallengeAdapter
     private var videoPlayer: ExoPlayer? = null
@@ -86,6 +94,13 @@ class HubDetailFragment : Fragment() {
         pbMainChallenge = view.findViewById(R.id.pb_main_challenge)
         tvMainChallengeProgress = view.findViewById(R.id.tv_main_challenge_progress)
         btnMainChallengePlus = view.findViewById(R.id.btn_main_challenge_plus)
+
+        layoutAbout = view.findViewById(R.id.layout_about)
+        tvAboutDescription = view.findViewById(R.id.tv_about_description)
+        tvAboutCategory = view.findViewById(R.id.tv_about_category)
+        tvAboutMembers = view.findViewById(R.id.tv_about_members)
+        tvAboutVisibility = view.findViewById(R.id.tv_about_visibility)
+        tvAboutCreatedBy = view.findViewById(R.id.tv_about_created_by)
 
         val currentUserId = runBlocking { UserPreferences(requireContext()).userId.first() ?: -1 }
         supportHelper = PostSupportHelper(this)
@@ -170,6 +185,7 @@ class HubDetailFragment : Fragment() {
     }
 
     private fun updateTab() {
+        layoutAbout.visibility = View.GONE
         when (currentTab) {
             0 -> {
                 rvContent.adapter = postAdapter
@@ -194,7 +210,7 @@ class HubDetailFragment : Fragment() {
                 rvContent.visibility = View.GONE
                 fabCreateChallenge.visibility = View.GONE
                 tvEmpty.visibility = View.GONE
-                showAboutInEmpty()
+                showAbout()
             }
         }
     }
@@ -204,23 +220,21 @@ class HubDetailFragment : Fragment() {
         fabCreateChallenge.visibility = if (currentTab == 1 && hub?.isMember == true) View.VISIBLE else View.GONE
     }
 
-    private fun showAboutInEmpty() {
+    private fun showAbout() {
         val hub = viewModel.hub.value ?: return
-        tvEmpty.visibility = View.VISIBLE
-        tvEmpty.text = buildString {
-            append(if (hub.description.isNotEmpty()) hub.description else "No description")
-            append("\n\n")
-            if (hub.categoryName?.isNotEmpty() == true) append("Category: ${hub.categoryName}\n")
-            append("Members: ${hub.membersCount}\n")
-            append("Visibility: ${if (hub.isPublic) "Public" else "Private"}\n")
-            if (hub.createdByUsername.isNotEmpty()) append("Created by: @${hub.createdByUsername}")
-        }
+        layoutAbout.visibility = View.VISIBLE
+        tvAboutDescription.text = hub.description.ifEmpty { "No description provided." }
+        tvAboutCategory.text = hub.categoryName?.ifEmpty { "—" } ?: "—"
+        tvAboutMembers.text = hub.membersCount.toString()
+        tvAboutVisibility.text = if (hub.isPublic) "Public" else "Private"
+        tvAboutCreatedBy.text = if (hub.createdByUsername.isNotEmpty()) "@${hub.createdByUsername}" else "—"
     }
 
     private fun observeViewModel() {
         viewModel.hub.observe(viewLifecycleOwner) { hub ->
             hub ?: return@observe
             bindHub(hub)
+            if (currentTab == 2) showAbout()
         }
 
         viewModel.posts.observe(viewLifecycleOwner) { posts ->
