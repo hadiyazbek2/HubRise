@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -70,16 +71,45 @@
 
     </LinearLayout>
 
-    <!-- Full-width media image (shown only when mediaUrl is non-null) -->
-    <ImageView
-        android:id="@+id/iv_media"
+    <!-- Full-width media container (image or video thumbnail) -->
+    <FrameLayout
+        android:id="@+id/container_media"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:minHeight="200dp"
-        android:scaleType="centerCrop"
-        android:adjustViewBounds="true"
-        android:contentDescription="Post image"
-        android:visibility="gone" />
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/iv_media"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="200dp"
+            android:scaleType="centerCrop"
+            android:adjustViewBounds="true"
+            android:contentDescription="Post media" />
+
+        <!-- ExoPlayer surface for inline video playback -->
+        <androidx.media3.ui.PlayerView
+            android:id="@+id/player_view"
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            app:use_controller="false"
+            app:resize_mode="fit"
+            android:visibility="gone" />
+
+        <!-- Play button overlay shown only for video posts (before tapping) -->
+        <ImageView
+            android:id="@+id/iv_play_overlay"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_video_placeholder"
+            android:background="@drawable/circle_semi_dark"
+            android:padding="14dp"
+            android:contentDescription="Play video"
+            android:visibility="gone" />
+
+    </FrameLayout>
 
     <!-- Action row: like, comment, share -->
     <LinearLayout

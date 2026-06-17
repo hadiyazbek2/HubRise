@@ -1218,3 +1218,18 @@ class SearchView(APIView):
 
         hub_data = HubSerializer(hubs, many=True, context={"request": request}).data
         return Response({"users": user_data, "hubs": hub_data, "posts": post_data, "challenges": challenge_data})
+
+
+class ExploreListView(generics.ListAPIView):
+    """Public media-carrying posts for the Explore (Shorts) vertical feed, newest first."""
+    serializer_class = PostSerializer
+    pagination_class = DefaultPagination
+
+    def get_queryset(self):
+        return (
+            Post.objects.filter(is_public=True, hub__is_public=True)
+            .exclude(media_file="")
+            .select_related("author", "author__profile", "hub")
+            .prefetch_related("likes")
+            .order_by("-created_at")
+        )

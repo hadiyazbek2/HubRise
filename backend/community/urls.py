@@ -31,10 +31,12 @@ from .views import (
     RecommendedHubsView,
     SearchView,
     TemplateListView,
+    ExploreListView,
     ToggleLikeView,
 )
 
 urlpatterns = [
+    path("explore/feed/", ExploreListView.as_view(), name="explore-feed"),
     path("users/<int:user_id>/profile/", UserPublicProfileView.as_view(), name="user-profile"),
     path("users/<int:user_id>/profile-picture/", ProfilePictureUploadView.as_view(), name="user-profile-picture"),
     path("users/<int:user_id>/posts/", UserPostsView.as_view(), name="user-posts"),

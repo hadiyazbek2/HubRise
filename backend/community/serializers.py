@@ -206,6 +206,7 @@ class PostSerializer(serializers.ModelSerializer):
     validations_count = serializers.IntegerField(source="validations.count", read_only=True)
     validated_by_me = serializers.SerializerMethodField()
     author_wishlist_url = serializers.SerializerMethodField()
+    media_type = serializers.SerializerMethodField()
 
     class Meta:
         model = Post
@@ -220,6 +221,7 @@ class PostSerializer(serializers.ModelSerializer):
             "post_type",
             "content",
             "media_url",
+            "media_type",
             "is_public",
             "created_at",
             "updated_at",
@@ -235,7 +237,7 @@ class PostSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "author", "created_at", "updated_at", "likes_count", "comments_count", "liked_by_me",
             "challenge", "challenge_title", "is_trusted", "validations_count", "validated_by_me",
-            "author_wishlist_url",
+            "author_wishlist_url", "media_type",
         ]
 
     def get_hub_name(self, obj: Post):
@@ -247,6 +249,20 @@ class PostSerializer(serializers.ModelSerializer):
     def get_author_wishlist_url(self, obj: Post) -> str:
         profile = getattr(obj.author, "profile", None)
         return profile.wishlist_url if profile else ""
+
+    _VIDEO_EXTS = {".mp4", ".mov", ".mkv", ".webm", ".avi", ".3gp", ".m4v"}
+    _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".bmp"}
+
+    def get_media_type(self, obj: Post) -> str:
+        if not obj.media_file:
+            return ""
+        import os
+        ext = os.path.splitext(obj.media_file.name)[1].lower()
+        if ext in self._VIDEO_EXTS:
+            return "video"
+        if ext in self._IMAGE_EXTS:
+            return "image"
+        return ""
 
     def get_validated_by_me(self, obj: Post) -> bool:
         request = self.context.get("request")

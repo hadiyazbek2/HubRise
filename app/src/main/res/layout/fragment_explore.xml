@@ -1,17 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center"
-    android:background="@color/bg_screen">
+    android:background="@color/black">
 
-    <TextView
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/vp_explore"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical" />
+
+    <!-- Loading spinner shown on initial load -->
+    <ProgressBar
+        android:id="@+id/pb_explore"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Explore — Coming Soon"
-        android:textSize="18sp"
-        android:textColor="@color/text_secondary"
-        android:textStyle="bold" />
+        android:layout_gravity="center"
+        android:visibility="gone"
+        android:indeterminateTint="@color/white" />
 
-</LinearLayout>
+    <!-- Empty state -->
+    <LinearLayout
+        android:id="@+id/layout_empty"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="No videos yet"
+            android:textColor="@color/white"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Posts with media from public hubs will appear here"
+            android:textColor="#AAFFFFFF"
+            android:textSize="13sp"
+            android:gravity="center"
+            android:layout_marginTop="6dp"
+            android:paddingHorizontal="32dp" />
+
+    </LinearLayout>
+
+</FrameLayout>

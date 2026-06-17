@@ -1,5 +1,6 @@
 package com.example.hubrise.ui.create
 
+import android.media.MediaMetadataRetriever
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -13,8 +14,12 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import coil.load
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.example.hubrise.R
 import com.example.hubrise.data.model.Challenge
 import com.example.hubrise.data.model.Hub
@@ -273,7 +278,26 @@ class CreatePostFragment : Fragment() {
         viewModel.selectedMediaUri.observe(viewLifecycleOwner) { uri ->
             if (uri != null) {
                 layoutMediaPreview.visibility = View.VISIBLE
-                ivMediaPreview.load(uri) { crossfade(true) }
+                val mimeType = requireContext().contentResolver.getType(uri)
+                if (mimeType?.startsWith("video") == true) {
+                    viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+                        val retriever = MediaMetadataRetriever()
+                        val bitmap = try {
+                            retriever.setDataSource(requireContext(), uri)
+                            retriever.getFrameAtTime(0)
+                        } catch (e: Exception) {
+                            null
+                        } finally {
+                            retriever.release()
+                        }
+                        withContext(Dispatchers.Main) {
+                            if (bitmap != null) ivMediaPreview.setImageBitmap(bitmap)
+                            else ivMediaPreview.setImageResource(R.drawable.ic_video_placeholder)
+                        }
+                    }
+                } else {
+                    ivMediaPreview.load(uri) { crossfade(true) }
+                }
             } else {
                 layoutMediaPreview.visibility = View.GONE
             }

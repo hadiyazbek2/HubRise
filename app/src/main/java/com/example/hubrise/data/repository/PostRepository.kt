@@ -1,6 +1,7 @@
 package com.example.hubrise.data.repository
 
 import com.example.hubrise.data.api.RetrofitClient
+import com.example.hubrise.data.model.PaginatedResponse
 import com.example.hubrise.data.model.Post
 import com.example.hubrise.data.model.ValidateResponse
 
@@ -13,9 +14,9 @@ class PostRepository {
         data class Error(val message: String) : Result<Nothing>()
     }
 
-    suspend fun getFeed(): Result<List<Post>> = try {
-        val r = api.getFeed()
-        if (r.isSuccessful) Result.Success(r.body()?.results ?: emptyList())
+    suspend fun getFeed(page: Int = 1): Result<PaginatedResponse<Post>> = try {
+        val r = api.getFeed(page)
+        if (r.isSuccessful && r.body() != null) Result.Success(r.body()!!)
         else Result.Error("Feed error ${r.code()}: ${r.errorBody()?.string()}")
     } catch (e: Exception) {
         Result.Error(e.message ?: "Network error")

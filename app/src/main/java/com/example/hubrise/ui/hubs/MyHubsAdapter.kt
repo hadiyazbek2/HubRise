@@ -33,6 +33,7 @@ class MyHubsAdapter(
         private val tvCategory: TextView = view.findViewById(R.id.tv_category)
         private val tvMembers: TextView = view.findViewById(R.id.tv_members)
         private val btnJoin: Button = view.findViewById(R.id.btn_join)
+        private val tvChallengeTitle: TextView = view.findViewById(R.id.tv_challenge_title)
         private val tvChallengeDesc: TextView = view.findViewById(R.id.tv_challenge_desc)
         private val tvProgressLabel: TextView = view.findViewById(R.id.tv_challenge_progress_label)
         private val pbChallenge: ProgressBar = view.findViewById(R.id.pb_challenge)
@@ -53,10 +54,18 @@ class MyHubsAdapter(
                 ivCover.load(coverUrl) { crossfade(true) }
             }
 
-            // Challenge — mocked until backend is ready
-            tvChallengeDesc.text = "No challenge set yet"
-            tvProgressLabel.text = "0 / 0"
-            pbChallenge.progress = 0
+            val mc = hub.mainChallenge
+            if (mc != null) {
+                tvChallengeTitle.text = mc.title
+                tvChallengeDesc.text = mc.summary.ifEmpty { mc.title }
+                tvProgressLabel.text = "${mc.percentComplete}%"
+                pbChallenge.progress = mc.percentComplete
+            } else {
+                tvChallengeTitle.text = "Main Challenge"
+                tvChallengeDesc.text = "No challenge set yet"
+                tvProgressLabel.text = "0%"
+                pbChallenge.progress = 0
+            }
 
             btnJoin.text = "Joined"
             btnJoin.setBackgroundResource(R.drawable.btn_joined)

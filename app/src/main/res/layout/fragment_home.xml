@@ -112,6 +112,14 @@
                 android:clipToPadding="false"
                 android:overScrollMode="never" />
 
+            <ProgressBar
+                android:id="@+id/pb_load_more"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_gravity="bottom|center_horizontal"
+                android:layout_marginBottom="88dp"
+                android:visibility="gone" />
+
             <!-- Empty state -->
             <LinearLayout
                 android:id="@+id/layout_empty"

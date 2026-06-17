@@ -24,25 +24,35 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLoading = MutableLiveData(false)
     val isLoading: LiveData<Boolean> = _isLoading
 
+    private val _isLoadingMore = MutableLiveData(false)
+    val isLoadingMore: LiveData<Boolean> = _isLoadingMore
+
     private val _isEmpty = MutableLiveData(false)
     val isEmpty: LiveData<Boolean> = _isEmpty
 
     private val _error = MutableLiveData<String?>(null)
     val error: LiveData<String?> = _error
 
+    private var currentPage = 1
+    private var hasMorePages = false
+    private var isLoadingMoreFlag = false
+
     init {
         loadFeed()
     }
 
     fun loadFeed() {
+        currentPage = 1
+        hasMorePages = false
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
 
-            when (val result = repository.getFeed()) {
+            when (val result = repository.getFeed(1)) {
                 is PostRepository.Result.Success -> {
-                    _posts.value = result.data
-                    _isEmpty.value = result.data.isEmpty()
+                    _posts.value = result.data.results
+                    _isEmpty.value = result.data.results.isEmpty()
+                    hasMorePages = result.data.next != null
                 }
                 is PostRepository.Result.Error -> {
                     _error.value = result.message
@@ -51,6 +61,27 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             _isLoading.value = false
+        }
+    }
+
+    fun loadMore() {
+        if (isLoadingMoreFlag || !hasMorePages || _isLoading.value == true) return
+        isLoadingMoreFlag = true
+        _isLoadingMore.value = true
+        val nextPage = currentPage + 1
+        viewModelScope.launch {
+            when (val result = repository.getFeed(nextPage)) {
+                is PostRepository.Result.Success -> {
+                    _posts.value = _posts.value.orEmpty() + result.data.results
+                    hasMorePages = result.data.next != null
+                    currentPage = nextPage
+                }
+                is PostRepository.Result.Error -> {
+                    _error.value = result.message
+                }
+            }
+            isLoadingMoreFlag = false
+            _isLoadingMore.value = false
         }
     }
 

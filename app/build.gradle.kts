@@ -79,6 +79,10 @@ dependencies {
     // ViewPager2
     implementation("androidx.viewpager2:viewpager2:1.1.0")
 
+    // Media3 ExoPlayer (for the Explore shorts feed)
+    implementation("androidx.media3:media3-exoplayer:1.3.1")
+    implementation("androidx.media3:media3-ui:1.3.1")
+
     // Validation
     implementation(libs.commons.validator)
 

@@ -19,6 +19,7 @@ import com.example.hubrise.R
 import com.example.hubrise.data.api.RetrofitClient
 import com.example.hubrise.data.local.UserPreferences
 import com.example.hubrise.data.model.Hub
+import androidx.media3.exoplayer.ExoPlayer
 import com.example.hubrise.ui.comments.CommentsBottomSheetFragment
 import com.example.hubrise.ui.home.PostAdapter
 import com.example.hubrise.ui.profile.UserProfileFragment
@@ -54,6 +55,7 @@ class HubDetailFragment : Fragment() {
 
     private lateinit var postAdapter: PostAdapter
     private lateinit var challengeAdapter: HubChallengeAdapter
+    private var videoPlayer: ExoPlayer? = null
 
     private var currentTab = 0
     private var hubId = 0
@@ -110,6 +112,9 @@ class HubDetailFragment : Fragment() {
             findNavController().navigate(R.id.challengeDetailFragment, bundle)
         }
 
+        videoPlayer = ExoPlayer.Builder(requireContext()).build()
+        postAdapter.setPlayer(videoPlayer!!)
+
         rvContent.layoutManager = LinearLayoutManager(requireContext())
 
         btnBack.setOnClickListener { findNavController().popBackStack() }
@@ -147,9 +152,21 @@ class HubDetailFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
+        postAdapter.resumeActive()
         // Picks up posts created by progress actions (stage complete / count log / streak
         // check-in) on the Challenge Detail screen, which this fragment doesn't observe directly.
         if (hubId != 0) viewModel.loadPosts(hubId)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        postAdapter.pauseAll()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        postAdapter.releasePlayer()
+        videoPlayer = null
     }
 
     private fun updateTab() {

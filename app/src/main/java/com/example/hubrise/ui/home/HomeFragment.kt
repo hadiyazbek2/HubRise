@@ -18,6 +18,7 @@ import com.example.hubrise.R
 import com.example.hubrise.data.local.UserPreferences
 import com.example.hubrise.ui.comments.CommentsBottomSheetFragment
 import com.example.hubrise.ui.profile.UserProfileFragment
+import androidx.media3.exoplayer.ExoPlayer
 import com.example.hubrise.utils.PostSupportHelper
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -27,10 +28,12 @@ class HomeFragment : Fragment() {
     private lateinit var viewModel: HomeViewModel
     private lateinit var adapter: PostAdapter
     private lateinit var supportHelper: PostSupportHelper
+    private var videoPlayer: ExoPlayer? = null
 
     private lateinit var rvPosts: RecyclerView
     private lateinit var swipeRefresh: SwipeRefreshLayout
     private lateinit var pbLoading: ProgressBar
+    private lateinit var pbLoadMore: ProgressBar
     private lateinit var layoutEmpty: View
     private lateinit var btnExploreHubs: Button
     private lateinit var vNotifDot: View
@@ -46,6 +49,7 @@ class HomeFragment : Fragment() {
         rvPosts = view.findViewById(R.id.rv_posts)
         swipeRefresh = view.findViewById(R.id.swipe_refresh)
         pbLoading = view.findViewById(R.id.pb_loading)
+        pbLoadMore = view.findViewById(R.id.pb_load_more)
         layoutEmpty = view.findViewById(R.id.layout_empty)
         btnExploreHubs = view.findViewById(R.id.btn_explore_hubs)
         vNotifDot = view.findViewById(R.id.v_notif_dot)
@@ -86,8 +90,20 @@ class HomeFragment : Fragment() {
             onPhysicalSupportClick = { post -> supportHelper.showPhysicalSupportDialog(post) },
             onGiftClick = { post -> supportHelper.handleGiftClick(post) },
         )
+        videoPlayer = ExoPlayer.Builder(requireContext()).build()
+        adapter.setPlayer(videoPlayer!!)
+
         rvPosts.layoutManager = LinearLayoutManager(requireContext())
         rvPosts.adapter = adapter
+        rvPosts.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                if (dy <= 0) return
+                val lm = recyclerView.layoutManager as LinearLayoutManager
+                if (lm.findLastVisibleItemPosition() >= lm.itemCount - 3) {
+                    viewModel.loadMore()
+                }
+            }
+        })
 
         swipeRefresh.setColorSchemeResources(R.color.blue_primary)
         swipeRefresh.setOnRefreshListener { viewModel.refresh() }
@@ -101,7 +117,19 @@ class HomeFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
+        adapter.resumeActive()
         viewModel.fetchUnreadCount()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        adapter.pauseAll()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        adapter.releasePlayer()
+        videoPlayer = null
     }
 
     private fun observeViewModel() {
@@ -123,6 +151,10 @@ class HomeFragment : Fragment() {
 
         viewModel.error.observe(viewLifecycleOwner) { error ->
             error?.let { Toast.makeText(requireContext(), it, Toast.LENGTH_LONG).show() }
+        }
+
+        viewModel.isLoadingMore.observe(viewLifecycleOwner) { loading ->
+            pbLoadMore.visibility = if (loading) View.VISIBLE else View.GONE
         }
 
         viewModel.unreadCount.observe(viewLifecycleOwner) { count ->

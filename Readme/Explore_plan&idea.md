@@ -1,39 +1,93 @@
-Explore page plan
-Right now ExploreFragment is a literal "Coming Soon" stub, so this is a clean slate. Here's the plan for a TikTok/Reels/Shorts-style vertical feed:
+# HubRise — Explore Page Plan & Ideas
 
-Layout — full-screen vertical swipe, one post per screen
+## Concept
 
+The Explore tab is a TikTok / Instagram Reels / YouTube Shorts-style vertical full-screen swipe feed surfacing public posts that have media attached (video-first, image fallback). It replaces the "Coming Soon" stub that occupied the second slot in the bottom nav.
 
+---
+
+## Screen layout
+
+```
 ┌─────────────────────────┐
-│ ▏ progress bar (top)    │ ← thin segmented bar like Stories, optional
 │                          │
 │                          │
-│      VIDEO (autoplay,    │        ●  ❤  142      ← like
-│      muted, looped)      │        ●  💬 12        ← comment
-│      — or a static       │        ●  ↗            ← share
-│      image post —        │        ●  🔇/🔊         ← mute toggle
-│      fills the screen    │
 │                          │
-│ @username · Hub name     │
-│ caption text here...     │
+│     VIDEO (autoplay,     │       ❤  142   ← like (tap)
+│     muted, looped)       │       💬 12    ← comment (opens sheet)
+│         — or —           │       ↗        ← share
+│     static IMAGE         │
+│     (fills screen,       │
+│      crop-zoom)          │
+│                          │
+│ 🔇 ── mute badge (tap)  │
+│                          │
+│ @username   Hub name ●   │
+│ Caption text here...     │
+│ ──────────────────────── │
+│  ■ ■ ■  bottom nav bar  │
 └─────────────────────────┘
-        ↑ swipe up → next post, swipe down → previous
-Video: autoplay on screen-enter, muted by default (tap anywhere to unmute), loops while visible, pauses the instant it's swiped away.
-Image posts: shown like a still slide — same overlay, swipe to advance (no timer auto-advance for v1, keep it user-paced).
-Right-side action rail reuses the existing like/comment endpoints — no new backend models.
-Bottom-left overlay: avatar, @username, hub chip, caption — same info PostAdapter already shows, just restyled for full-bleed.
-Where the content comes from
-No new content type needed — this plan repurposes your existing Post.media_file. A new lightweight endpoint, e.g. GET /api/explore/feed/, returns public posts (hub is_public=True or no hub) that have media attached, video-first. The one real backend addition: a media_type field (image/video) computed on save instead of Android guessing from the file extension — small, safe, additive migration, same pattern as every prior round.
+       ↑ swipe up = next, swipe down = previous
+```
 
-Android architecture
+### Behavior
+| Element | Behavior |
+|---|---|
+| Video | Autoplays muted on page-enter, loops, pauses on swipe-away |
+| Image | Shows full-screen (crop-zoom), held until user swipes |
+| Mute badge | Top-right; tap to toggle sound on/off |
+| Right action rail | Like (filled/outline), comment count (opens CommentsBottomSheet), share |
+| Bottom overlay | Avatar chip · @username · hub name pill · caption text |
+| Double-tap | Like shorthand animation (Phase B) |
 
-ViewPager2 (vertical orientation) + RecyclerView.Adapter, one ViewHolder type per media kind.
-Video playback via Media3 ExoPlayer (new dependency) — a single shared player instance attached/detached to whichever item is currently on-screen (the standard TikTok-clone pattern; avoids spinning up N players for N feed items).
-Play/pause wired to ViewPager2.OnPageChangeCallback + fragment lifecycle (pause on onPause/leaving the tab, resume on return).
-Likes/comments/share reuse HomeViewModel/CommentRepository exactly as today — this screen is a different presentation of posts, not a different data model.
-Phasing
+---
 
-MVP — vertical swipe feed of existing public media posts, chronological order, autoplay/mute, like+comment+share working, tap-to-open full comments sheet (reuse CommentsBottomSheetFragment).
-Later — smarter ranking ("for you" vs "following"), double-tap-to-like animation, view-count tracking.
-Later still — a dedicated short-video capture flow (record-in-app) rather than only surfacing whatever was posted via the normal Create Post screen.
-Want me to start on the MVP (backend media_type field + feed endpoint + the Android ViewPager2/ExoPlayer screen), or hold here while you think it over?
+## Architecture decisions
+
+### Content source
+Reuses existing `Post.media_file` — no new content type. Backend endpoint `GET /api/explore/feed/` returns public posts (hub `is_public=True`, or personal public posts) that have a media file attached, ordered video-first then by newest.
+
+A `media_type` field is exposed via `PostSerializer` (computed from file extension — no schema migration needed):
+- `"video"` for .mp4/.mov/.mkv/.webm etc.
+- `"image"` for .jpg/.png/.gif/.webp etc.
+- `""` (empty) for posts without media
+
+### Android: single-player pattern
+One `ExoPlayer` instance created and owned by `ExploreFragment`. The adapter holds a reference; on page change the player is attached to the incoming page's `PlayerView` and detached from the outgoing one. Keeps memory usage flat regardless of feed length.
+
+### Engagement
+Reuses existing like (`POST /api/posts/<id>/like/`) and comment infrastructure. No new backend models.
+
+---
+
+## Phasing
+
+| Phase | What ships | Status |
+|---|---|---|
+| **MVP** | Vertical feed, video autoplay/mute, image fallback, like/comment/share, pagination | ✅ This round |
+| B | Double-tap to like animation, view-count tracking per post, "For You" ranking signal | ⏸ Later |
+| C | Dedicated in-app short-video capture flow | ⏸ Later |
+
+---
+
+## Files changed (MVP)
+
+### Backend
+- `community/serializers.py` — `PostSerializer` gains `media_type` SerializerMethodField
+- `community/views.py` — new `ExploreListView`
+- `community/urls.py` — `path("explore/feed/", ...)`
+
+### Android
+- `app/build.gradle.kts` — `media3-exoplayer:1.3.1` + `media3-ui:1.3.1`
+- `data/model/Post.kt` — `mediaType: String` field
+- `data/api/ExploreApiService.kt` — Retrofit interface for `GET api/explore/feed/`
+- `data/repository/ExploreRepository.kt` — paginated feed fetch
+- `ui/explore/ExploreViewModel.kt` — `loadFeed()`, `loadMore()`, `toggleLike()` (optimistic)
+- `res/layout/fragment_explore.xml` — black FrameLayout with ViewPager2 (vertical), loading spinner, empty state
+- `res/layout/item_explore_post.xml` — `PlayerView` + `ImageView` (one visible at a time), bottom gradient, right action rail (❤️/💬/↗), bottom-left info (avatar / @username / hub chip / caption), top-right mute badge
+- `res/drawable/gradient_bottom_overlay.xml` — transparent→semi-black gradient for overlay readability
+- `res/drawable/ic_volume_off.xml`, `ic_volume_on.xml`, `circle_semi_dark.xml` — new icons
+- `ui/explore/ExploreAdapter.kt` — single shared `ExoPlayer` attached/detached per page change; `setCurrentPosition()` triggers bind for active page, `onViewRecycled()` detaches player; mute toggle stored as adapter-level `isMuted` flag
+- `ui/explore/ExploreFragment.kt` — creates `ExoPlayer`, passes to adapter; `ViewPager2.OnPageChangeCallback` calls `setCurrentPosition()`; `onPause`→`pausePlayer()`, `onResume`→`resumePlayer()`, `onDestroyView`→`releasePlayer()`; `onNearEnd` lambda triggers `viewModel.loadMore()`
+
+**Verified:** `./gradlew :app:compileDebugKotlin` → BUILD SUCCESSFUL, no new warnings. `python manage.py check` → no issues. Backend smoke test: `GET /api/explore/feed/` returns `200`, `media_type: "video"` computed correctly from file extension.

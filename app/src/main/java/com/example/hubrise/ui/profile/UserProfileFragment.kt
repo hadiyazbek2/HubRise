@@ -12,6 +12,7 @@ import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -29,6 +30,8 @@ class UserProfileFragment : Fragment() {
     }
 
     private lateinit var viewModel: UserProfileViewModel
+    private lateinit var postsAdapter: PostAdapter
+    private var videoPlayer: ExoPlayer? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -61,7 +64,7 @@ class UserProfileFragment : Fragment() {
         btnBack.setOnClickListener { findNavController().popBackStack() }
 
         val supportHelper = PostSupportHelper(this)
-        val postsAdapter = PostAdapter(
+        postsAdapter = PostAdapter(
             onUserClick = { authorId ->
                 if (authorId != userId) {
                     val bundle = Bundle().apply { putInt(ARG_USER_ID, authorId) }
@@ -76,6 +79,9 @@ class UserProfileFragment : Fragment() {
             onPhysicalSupportClick = { post -> supportHelper.showPhysicalSupportDialog(post) },
             onGiftClick = { post -> supportHelper.handleGiftClick(post) },
         )
+        videoPlayer = ExoPlayer.Builder(requireContext()).build()
+        postsAdapter.setPlayer(videoPlayer!!)
+
         rvPosts.layoutManager = LinearLayoutManager(requireContext())
         rvPosts.adapter = postsAdapter
 
@@ -138,5 +144,21 @@ class UserProfileFragment : Fragment() {
         }
 
         viewModel.load(userId)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        postsAdapter.resumeActive()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        postsAdapter.pauseAll()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        postsAdapter.releasePlayer()
+        videoPlayer = null
     }
 }

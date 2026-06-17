@@ -8,11 +8,12 @@ import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 interface FeedApiService {
 
     @GET("api/posts/feed/")
-    suspend fun getFeed(): Response<PaginatedResponse<Post>>
+    suspend fun getFeed(@Query("page") page: Int = 1): Response<PaginatedResponse<Post>>
 
     @POST("api/posts/{id}/like/")
     suspend fun toggleLike(
