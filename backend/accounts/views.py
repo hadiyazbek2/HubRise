@@ -12,7 +12,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from community.models import HubMembership, Post
 from community.serializers import PostSerializer
 from community.views import DefaultPagination
-from .models import Notification, UserFollow, UserProfile
+from .models import Interest, Notification, UserFollow, UserProfile
 from .serializers import (
     AvailabilityEmailSerializer,
     AvailabilityUsernameSerializer,
@@ -287,3 +287,21 @@ class NotificationUnreadCountView(APIView):
     def get(self, request):
         count = Notification.objects.filter(recipient=request.user, is_read=False).count()
         return Response({"count": count})
+
+
+class InterestListView(generics.ListAPIView):
+    permission_classes = [AllowAny]
+
+    def list(self, request, *args, **kwargs):
+        from django.db.models import Case, IntegerField, Value, When
+        interests = (
+            Interest.objects.all()
+            .annotate(is_other=Case(
+                When(name__iexact="other", then=Value(1)),
+                default=Value(0),
+                output_field=IntegerField(),
+            ))
+            .order_by("is_other", "name")
+            .values("id", "name")
+        )
+        return Response(list(interests))

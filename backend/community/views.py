@@ -1073,6 +1073,13 @@ class HubUpdateView(APIView):
         if "is_public" in request.data:
             hub.is_public = str(request.data["is_public"]).lower() in ("true", "1")
             update_fields.append("is_public")
+        if "category" in request.data:
+            try:
+                from accounts.models import Interest
+                hub.category = Interest.objects.get(id=int(request.data["category"]))
+                update_fields.append("category")
+            except (ValueError, TypeError, Interest.DoesNotExist):
+                return Response({"detail": "Invalid category."}, status=status.HTTP_400_BAD_REQUEST)
         if "cover_image" in request.FILES:
             hub.cover_image = request.FILES["cover_image"]
             update_fields.append("cover_image")

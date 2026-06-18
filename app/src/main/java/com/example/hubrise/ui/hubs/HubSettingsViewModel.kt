@@ -6,6 +6,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.example.hubrise.data.model.Hub
+import com.example.hubrise.data.model.HubCategory
 import com.example.hubrise.data.model.HubMember
 import com.example.hubrise.data.repository.HubRepository
 import kotlinx.coroutines.launch
@@ -36,6 +37,34 @@ class HubSettingsViewModel(application: Application) : AndroidViewModel(applicat
     private val _pendingCompletionRequestsCount = MutableLiveData(0)
     val pendingCompletionRequestsCount: LiveData<Int> = _pendingCompletionRequestsCount
 
+    private val _categories = MutableLiveData<List<HubCategory>>(emptyList())
+    val categories: LiveData<List<HubCategory>> = _categories
+
+    private val _selectedCategory = MutableLiveData<HubCategory?>(null)
+    val selectedCategory: LiveData<HubCategory?> = _selectedCategory
+
+    init {
+        viewModelScope.launch {
+            when (val r = repository.getCategories()) {
+                is HubRepository.Result.Success -> _categories.value = r.data
+                is HubRepository.Result.Error -> {}
+            }
+        }
+    }
+
+    fun selectCategory(category: HubCategory) {
+        _selectedCategory.value = category
+    }
+
+    fun setInitialCategory(categoryName: String?) {
+        viewModelScope.launch {
+            val cats = _categories.value
+            if (!cats.isNullOrEmpty() && categoryName != null) {
+                _selectedCategory.value = cats.firstOrNull { it.name == categoryName }
+            }
+        }
+    }
+
     fun loadPendingCompletionRequestsCount(hubId: Int) {
         viewModelScope.launch {
             when (val r = repository.getHubCompletionRequests(hubId)) {
@@ -57,7 +86,8 @@ class HubSettingsViewModel(application: Application) : AndroidViewModel(applicat
     fun saveSettings(hubId: Int, name: String, description: String, isPublic: Boolean, coverFile: File?) {
         viewModelScope.launch {
             _isSaving.value = true
-            when (val r = repository.updateHub(hubId, name.trim(), description.trim(), isPublic, coverFile)) {
+            val categoryId = _selectedCategory.value?.id
+            when (val r = repository.updateHub(hubId, name.trim(), description.trim(), isPublic, coverFile, categoryId)) {
                 is HubRepository.Result.Success -> {
                     _hub.value = r.data
                     _saved.value = true

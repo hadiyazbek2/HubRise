@@ -155,11 +155,13 @@ class HubRepository {
         description: String?,
         isPublic: Boolean?,
         coverFile: File?,
+        categoryId: Int? = null,
     ): Result<Hub> = try {
         val fields = mutableMapOf<String, okhttp3.RequestBody>()
         name?.let { fields["name"] = it.toRequestBody("text/plain".toMediaTypeOrNull()) }
         description?.let { fields["description"] = it.toRequestBody("text/plain".toMediaTypeOrNull()) }
         isPublic?.let { fields["is_public"] = it.toString().toRequestBody("text/plain".toMediaTypeOrNull()) }
+        categoryId?.let { fields["category"] = it.toString().toRequestBody("text/plain".toMediaTypeOrNull()) }
         val coverPart = coverFile?.let {
             MultipartBody.Part.createFormData("cover_image", it.name, it.asRequestBody("image/*".toMediaTypeOrNull()))
         }

@@ -296,6 +296,7 @@ class HubDetailFragment : Fragment() {
                     putString("hubDescription", hub.description)
                     putBoolean("isPublic", hub.isPublic)
                     putString("coverUrl", hub.coverImageUrl ?: "")
+                    putString("categoryName", hub.categoryName ?: "")
                 }
                 findNavController().navigate(R.id.hubSettingsFragment, bundle)
             }

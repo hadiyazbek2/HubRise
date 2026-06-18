@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
@@ -36,6 +37,8 @@ class HubSettingsFragment : Fragment() {
     private lateinit var rvMembers: RecyclerView
     private lateinit var membersAdapter: HubMembersAdapter
     private lateinit var tvCompletionRequestsCount: TextView
+    private lateinit var layoutCategoryPicker: LinearLayout
+    private lateinit var tvCategoryValue: TextView
 
     private var hubId = 0
     private var selectedCoverUri: Uri? = null
@@ -59,6 +62,7 @@ class HubSettingsFragment : Fragment() {
         val hubDescription = arguments?.getString("hubDescription") ?: ""
         val isPublic = arguments?.getBoolean("isPublic") ?: true
         val coverUrl = arguments?.getString("coverUrl") ?: ""
+        val categoryName = arguments?.getString("categoryName") ?: ""
 
         etName = view.findViewById(R.id.et_name)
         etDescription = view.findViewById(R.id.et_description)
@@ -67,6 +71,8 @@ class HubSettingsFragment : Fragment() {
         pbSaving = view.findViewById(R.id.pb_saving)
         rvMembers = view.findViewById(R.id.rv_members)
         tvCompletionRequestsCount = view.findViewById(R.id.tv_completion_requests_count)
+        layoutCategoryPicker = view.findViewById(R.id.layout_category_picker)
+        tvCategoryValue = view.findViewById(R.id.tv_category_value)
 
         etName.setText(hubName)
         etDescription.setText(hubDescription)
@@ -77,20 +83,18 @@ class HubSettingsFragment : Fragment() {
         }
 
         view.findViewById<View>(R.id.btn_back).setOnClickListener { findNavController().navigateUp() }
-
-        view.findViewById<View>(R.id.fl_cover_picker).setOnClickListener {
-            pickImage.launch("image/*")
-        }
-
+        view.findViewById<View>(R.id.fl_cover_picker).setOnClickListener { pickImage.launch("image/*") }
         view.findViewById<View>(R.id.btn_save).setOnClickListener { save() }
-
         view.findViewById<View>(R.id.btn_delete_hub).setOnClickListener { confirmDelete() }
-
         view.findViewById<View>(R.id.row_completion_requests).setOnClickListener {
             val bundle = Bundle().apply { putInt("hubId", hubId) }
             findNavController().navigate(R.id.completionRequestsFragment, bundle)
         }
+
+        layoutCategoryPicker.setOnClickListener { showCategoryPicker() }
+
         viewModel.loadPendingCompletionRequestsCount(hubId)
+        viewModel.loadMembers(hubId)
 
         membersAdapter = HubMembersAdapter(
             currentUserId = -1,
@@ -107,9 +111,34 @@ class HubSettingsFragment : Fragment() {
         rvMembers.layoutManager = LinearLayoutManager(requireContext())
         rvMembers.adapter = membersAdapter
 
-        viewModel.loadMembers(hubId)
+        // Pre-select the current category once categories load
+        viewModel.categories.observe(viewLifecycleOwner) { cats ->
+            if (viewModel.selectedCategory.value == null && categoryName.isNotEmpty()) {
+                val match = cats.firstOrNull { it.name == categoryName }
+                if (match != null) viewModel.selectCategory(match)
+            }
+        }
 
         observeViewModel()
+    }
+
+    private fun showCategoryPicker() {
+        val categories = viewModel.categories.value ?: emptyList()
+        if (categories.isEmpty()) {
+            Toast.makeText(requireContext(), "Categories still loading…", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val names = categories.map { it.name }.toTypedArray()
+        val currentIndex = viewModel.selectedCategory.value
+            ?.let { sel -> categories.indexOfFirst { it.id == sel.id } } ?: -1
+        AlertDialog.Builder(requireContext())
+            .setTitle("Select a category")
+            .setSingleChoiceItems(names, currentIndex) { dialog, which ->
+                viewModel.selectCategory(categories[which])
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun save() {
@@ -141,6 +170,16 @@ class HubSettingsFragment : Fragment() {
     } catch (e: Exception) { null }
 
     private fun observeViewModel() {
+        viewModel.selectedCategory.observe(viewLifecycleOwner) { category ->
+            if (category != null) {
+                tvCategoryValue.text = category.name
+                tvCategoryValue.setTextColor(resources.getColor(R.color.text_primary, null))
+            } else {
+                tvCategoryValue.text = "Select a category"
+                tvCategoryValue.setTextColor(resources.getColor(R.color.text_secondary, null))
+            }
+        }
+
         viewModel.members.observe(viewLifecycleOwner) { members ->
             membersAdapter.submitList(members)
         }
@@ -164,7 +203,6 @@ class HubSettingsFragment : Fragment() {
         viewModel.deleted.observe(viewLifecycleOwner) { deleted ->
             if (deleted) {
                 Toast.makeText(requireContext(), "Hub deleted", Toast.LENGTH_SHORT).show()
-                // Pop back twice: settings → hub detail → hubs list
                 findNavController().popBackStack(R.id.hubsFragment, false)
             }
         }

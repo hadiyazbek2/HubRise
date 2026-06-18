@@ -110,7 +110,10 @@ class CreateHubFragment : Fragment() {
 
     private fun showCategoryPicker() {
         val categories = viewModel.categories.value ?: emptyList()
-        if (categories.isEmpty()) return
+        if (categories.isEmpty()) {
+            android.widget.Toast.makeText(requireContext(), "Categories still loading…", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
         val names = categories.map { it.name }.toTypedArray()
         val currentIndex = viewModel.selectedCategory.value
             ?.let { sel -> categories.indexOfFirst { it.id == sel.id } } ?: -1
