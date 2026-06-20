@@ -1,7 +1,15 @@
+import secrets
+import string
+
 from django.conf import settings
 from django.db import models
 
 from accounts.models import Interest
+
+
+def _generate_invite_code():
+    alphabet = string.ascii_uppercase + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(8))
 
 
 class Hub(models.Model):
@@ -11,6 +19,7 @@ class Hub(models.Model):
     members_count = models.PositiveIntegerField(default=0)
     cover_image = models.ImageField(upload_to="hub_covers/", blank=True)
     is_public = models.BooleanField(default=True)
+    invite_code = models.CharField(max_length=8, unique=True, blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -22,6 +31,14 @@ class Hub(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+
+    def save(self, *args, **kwargs):
+        if not self.invite_code:
+            code = _generate_invite_code()
+            while Hub.objects.filter(invite_code=code).exclude(pk=self.pk).exists():
+                code = _generate_invite_code()
+            self.invite_code = code
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         return self.name

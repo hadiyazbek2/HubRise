@@ -16,6 +16,7 @@ data class Hub(
     @SerializedName("created_by_username") val createdByUsername: String = "",
     @SerializedName("created_at") val createdAt: String = "",
     @SerializedName("main_challenge") val mainChallenge: MainChallenge? = null,
+    @SerializedName("invite_code") val inviteCode: String? = null,
 )
 
 data class MainChallenge(

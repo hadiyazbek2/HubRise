@@ -1,6 +1,9 @@
 package com.example.hubrise.ui.hubs
 
 import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -39,8 +42,13 @@ class HubSettingsFragment : Fragment() {
     private lateinit var tvCompletionRequestsCount: TextView
     private lateinit var layoutCategoryPicker: LinearLayout
     private lateinit var tvCategoryValue: TextView
+    private lateinit var layoutInviteCode: LinearLayout
+    private lateinit var tvInviteCode: TextView
+    private lateinit var btnCopyCode: TextView
+    private lateinit var btnResetCode: TextView
 
     private var hubId = 0
+    private var isPublic = true
     private var selectedCoverUri: Uri? = null
 
     private val pickImage = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -60,9 +68,10 @@ class HubSettingsFragment : Fragment() {
         hubId = arguments?.getInt("hubId") ?: return
         val hubName = arguments?.getString("hubName") ?: ""
         val hubDescription = arguments?.getString("hubDescription") ?: ""
-        val isPublic = arguments?.getBoolean("isPublic") ?: true
+        isPublic = arguments?.getBoolean("isPublic") ?: true
         val coverUrl = arguments?.getString("coverUrl") ?: ""
         val categoryName = arguments?.getString("categoryName") ?: ""
+        val initialInviteCode = arguments?.getString("inviteCode")
 
         etName = view.findViewById(R.id.et_name)
         etDescription = view.findViewById(R.id.et_description)
@@ -73,6 +82,10 @@ class HubSettingsFragment : Fragment() {
         tvCompletionRequestsCount = view.findViewById(R.id.tv_completion_requests_count)
         layoutCategoryPicker = view.findViewById(R.id.layout_category_picker)
         tvCategoryValue = view.findViewById(R.id.tv_category_value)
+        layoutInviteCode = view.findViewById(R.id.layout_invite_code)
+        tvInviteCode = view.findViewById(R.id.tv_invite_code)
+        btnCopyCode = view.findViewById(R.id.btn_copy_code)
+        btnResetCode = view.findViewById(R.id.btn_reset_code)
 
         etName.setText(hubName)
         etDescription.setText(hubDescription)
@@ -92,6 +105,34 @@ class HubSettingsFragment : Fragment() {
         }
 
         layoutCategoryPicker.setOnClickListener { showCategoryPicker() }
+
+        // Invite code section — show only for private hubs
+        if (!isPublic && initialInviteCode != null) {
+            viewModel.setInviteCode(initialInviteCode)
+        }
+        layoutInviteCode.visibility = if (!isPublic) View.VISIBLE else View.GONE
+
+        swPublic.setOnCheckedChangeListener { _, checked ->
+            layoutInviteCode.visibility = if (!checked) View.VISIBLE else View.GONE
+        }
+
+        btnCopyCode.setOnClickListener {
+            val code = tvInviteCode.text.toString()
+            if (code.isNotBlank() && code != "--------") {
+                val clip = ClipData.newPlainText("HubRise invite code", code)
+                (requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(clip)
+                Toast.makeText(requireContext(), "Code copied!", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        btnResetCode.setOnClickListener {
+            AlertDialog.Builder(requireContext())
+                .setTitle("Reset invite code?")
+                .setMessage("The old code will stop working immediately. Anyone who hasn't joined yet will need the new code.")
+                .setPositiveButton("Reset") { _, _ -> viewModel.resetInviteCode(hubId) }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
 
         viewModel.loadPendingCompletionRequestsCount(hubId)
         viewModel.loadMembers(hubId)
@@ -178,6 +219,10 @@ class HubSettingsFragment : Fragment() {
                 tvCategoryValue.text = "Select a category"
                 tvCategoryValue.setTextColor(resources.getColor(R.color.text_secondary, null))
             }
+        }
+
+        viewModel.inviteCode.observe(viewLifecycleOwner) { code ->
+            if (code != null) tvInviteCode.text = code
         }
 
         viewModel.members.observe(viewLifecycleOwner) { members ->

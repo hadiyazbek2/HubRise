@@ -213,4 +213,21 @@ class HubRepository {
         if (r.isSuccessful && r.body() != null) Result.Success(r.body()!!)
         else Result.Error("${r.code()}: ${r.errorBody()?.string()}")
     } catch (e: Exception) { Result.Error(e.message ?: "Network error") }
+
+    suspend fun joinByCode(code: String): Result<Hub> = try {
+        val r = api.joinByCode(mapOf("code" to code.trim().uppercase()))
+        if (r.isSuccessful && r.body() != null) Result.Success(r.body()!!)
+        else Result.Error(r.errorBody()?.string()?.let { extractDetail(it) } ?: "Invalid code")
+    } catch (e: Exception) { Result.Error(e.message ?: "Network error") }
+
+    suspend fun resetInviteCode(hubId: Int): Result<String> = try {
+        val r = api.resetInviteCode(hubId)
+        val code = r.body()?.get("invite_code")
+        if (r.isSuccessful && code != null) Result.Success(code)
+        else Result.Error("${r.code()}: ${r.errorBody()?.string()}")
+    } catch (e: Exception) { Result.Error(e.message ?: "Network error") }
+
+    private fun extractDetail(json: String): String = try {
+        org.json.JSONObject(json).optString("detail", json)
+    } catch (_: Exception) { json }
 }

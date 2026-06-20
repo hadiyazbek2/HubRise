@@ -10,17 +10,22 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
 import com.example.hubrise.R
+import com.example.hubrise.data.repository.HubRepository
 import com.example.hubrise.ui.search.HubSearchAdapter
 import com.example.hubrise.ui.search.SearchViewModel
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
+import kotlinx.coroutines.launch
 
 class HubsFragment : Fragment() {
 
@@ -36,6 +41,7 @@ class HubsFragment : Fragment() {
         val tabLayout = view.findViewById<TabLayout>(R.id.tab_layout)
         val viewPager = view.findViewById<ViewPager2>(R.id.view_pager)
         val btnCreate = view.findViewById<Button>(R.id.btn_create_hub)
+        val btnJoin = view.findViewById<Button>(R.id.btn_join_code)
         val btnSearchHubs = view.findViewById<ImageView>(R.id.btn_search_hubs)
         val searchBarRow = view.findViewById<View>(R.id.search_bar_row)
         val etHubSearch = view.findViewById<EditText>(R.id.et_hub_search)
@@ -43,7 +49,6 @@ class HubsFragment : Fragment() {
         val rvHubSearch = view.findViewById<RecyclerView>(R.id.rv_hub_search)
         val tvHubSearchEmpty = view.findViewById<TextView>(R.id.tv_hub_search_empty)
 
-        // Normal mode: pager with tabs
         viewPager.adapter = HubsPagerAdapter(this)
         TabLayoutMediator(tabLayout, viewPager) { tab, position ->
             tab.text = when (position) { 0 -> "Your Hubs"; else -> "Explore" }
@@ -53,7 +58,8 @@ class HubsFragment : Fragment() {
             findNavController().navigate(R.id.createHubFragment)
         }
 
-        // Hub search
+        btnJoin.setOnClickListener { showJoinByCodeDialog() }
+
         searchViewModel = ViewModelProvider(this)[SearchViewModel::class.java]
 
         val hubSearchAdapter = HubSearchAdapter { hubId ->
@@ -92,6 +98,45 @@ class HubsFragment : Fragment() {
             hubSearchAdapter.submitList(hubs)
             val query = etHubSearch.text?.toString() ?: ""
             tvHubSearchEmpty.visibility = if (query.isNotBlank() && hubs.isEmpty()) View.VISIBLE else View.GONE
+        }
+    }
+
+    private fun showJoinByCodeDialog() {
+        val input = EditText(requireContext()).apply {
+            hint = "Enter 8-character code"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+            setPadding(48, 32, 48, 32)
+        }
+        AlertDialog.Builder(requireContext())
+            .setTitle("Join a Private Hub")
+            .setMessage("Enter the invite code shared by the hub creator.")
+            .setView(input)
+            .setPositiveButton("Join") { _, _ ->
+                val code = input.text.toString().trim()
+                if (code.isEmpty()) {
+                    Toast.makeText(requireContext(), "Please enter a code", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                joinByCode(code)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun joinByCode(code: String) {
+        val repo = HubRepository()
+        lifecycleScope.launch {
+            when (val result = repo.joinByCode(code)) {
+                is HubRepository.Result.Success -> {
+                    val hub = result.data
+                    Toast.makeText(requireContext(), "Joined \"${hub.name}\"!", Toast.LENGTH_SHORT).show()
+                    val bundle = Bundle().apply { putInt("hubId", hub.id) }
+                    findNavController().navigate(R.id.hubDetailFragment, bundle)
+                }
+                is HubRepository.Result.Error -> {
+                    Toast.makeText(requireContext(), result.message, Toast.LENGTH_LONG).show()
+                }
+            }
         }
     }
 }

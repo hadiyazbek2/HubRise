@@ -141,6 +141,7 @@ class HubSerializer(serializers.ModelSerializer):
     created_by_username = serializers.CharField(source="created_by.username", read_only=True)
     main_challenge = serializers.SerializerMethodField()
     cover_image_url = serializers.SerializerMethodField()
+    invite_code = serializers.SerializerMethodField()
 
     class Meta:
         model = Hub
@@ -159,8 +160,15 @@ class HubSerializer(serializers.ModelSerializer):
             "is_member",
             "is_creator",
             "main_challenge",
+            "invite_code",
         ]
         read_only_fields = ["members_count", "created_by", "created_at", "is_member", "is_creator", "main_challenge"]
+
+    def get_invite_code(self, obj: Hub):
+        request = self.context.get("request")
+        if request and request.user.is_authenticated and obj.created_by_id == request.user.id:
+            return obj.invite_code
+        return None
 
     def get_category_name(self, obj: Hub) -> str:
         return obj.category.name if obj.category else ""

@@ -197,6 +197,41 @@ class LeaveHubView(APIView):
         )
 
 
+class JoinByInviteCodeView(APIView):
+    def post(self, request):
+        code = request.data.get("code", "").strip().upper()
+        if not code:
+            return Response({"detail": "Invite code is required."}, status=status.HTTP_400_BAD_REQUEST)
+        hub = get_object_or_404(Hub, invite_code=code)
+        if HubMembership.objects.filter(user=request.user, hub=hub).exists():
+            return Response({"detail": "You are already a member of this hub."}, status=status.HTTP_400_BAD_REQUEST)
+        current_count = HubMembership.objects.filter(user=request.user).count()
+        if current_count >= MAX_HUB_MEMBERSHIPS:
+            return Response(
+                {"detail": f"You cannot join more than {MAX_HUB_MEMBERSHIPS} hubs."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        HubMembership.objects.create(user=request.user, hub=hub)
+        Hub.objects.filter(id=hub.id).update(members_count=F("members_count") + 1)
+        hub.refresh_from_db()
+        return Response(HubSerializer(hub, context={"request": request}).data, status=status.HTTP_200_OK)
+
+
+class ResetInviteCodeView(APIView):
+    def post(self, request, id: int):
+        hub = get_object_or_404(Hub, id=id)
+        if hub.created_by_id != request.user.id:
+            return Response({"detail": "Only the hub creator can reset the invite code."}, status=status.HTTP_403_FORBIDDEN)
+        import secrets, string
+        alphabet = string.ascii_uppercase + string.digits
+        new_code = "".join(secrets.choice(alphabet) for _ in range(8))
+        while Hub.objects.filter(invite_code=new_code).exclude(id=hub.id).exists():
+            new_code = "".join(secrets.choice(alphabet) for _ in range(8))
+        hub.invite_code = new_code
+        hub.save(update_fields=["invite_code"])
+        return Response({"invite_code": hub.invite_code})
+
+
 class HubPostsView(generics.ListAPIView):
     serializer_class = PostSerializer
     pagination_class = DefaultPagination

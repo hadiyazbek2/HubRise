@@ -43,6 +43,9 @@ class HubSettingsViewModel(application: Application) : AndroidViewModel(applicat
     private val _selectedCategory = MutableLiveData<HubCategory?>(null)
     val selectedCategory: LiveData<HubCategory?> = _selectedCategory
 
+    private val _inviteCode = MutableLiveData<String?>(null)
+    val inviteCode: LiveData<String?> = _inviteCode
+
     init {
         viewModelScope.launch {
             when (val r = repository.getCategories()) {
@@ -54,6 +57,19 @@ class HubSettingsViewModel(application: Application) : AndroidViewModel(applicat
 
     fun selectCategory(category: HubCategory) {
         _selectedCategory.value = category
+    }
+
+    fun setInviteCode(code: String?) {
+        _inviteCode.value = code
+    }
+
+    fun resetInviteCode(hubId: Int) {
+        viewModelScope.launch {
+            when (val r = repository.resetInviteCode(hubId)) {
+                is HubRepository.Result.Success -> _inviteCode.value = r.data
+                is HubRepository.Result.Error -> _error.value = r.message
+            }
+        }
     }
 
     fun setInitialCategory(categoryName: String?) {

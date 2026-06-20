@@ -128,4 +128,10 @@ interface HubApiService {
 
     @GET("api/auth/interests/")
     suspend fun getCategories(): Response<List<HubCategory>>
+
+    @POST("api/hubs/join-by-code/")
+    suspend fun joinByCode(@Body body: Map<String, String>): Response<Hub>
+
+    @POST("api/hubs/{id}/reset-invite-code/")
+    suspend fun resetInviteCode(@Path("id") id: Int): Response<Map<String, String>>
 }
